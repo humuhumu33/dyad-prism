@@ -25,6 +25,8 @@ shutil.copytree(src / "src", dst / "src")
 for name in ("package.json", "tailwind.config.ts", "index.html", "AI_RULES.md"):
     if (src / name).exists():
         shutil.copy(src / name, dst / name)
+app = dst / "src" / "App.tsx"
+app.write_text(app.read_text(encoding="utf-8").replace("<BrowserRouter>", "<BrowserRouter basename={import.meta.env.BASE_URL}>", 1), encoding="utf-8", newline="\n")
 files = sorted(str(p.relative_to(dst)).replace("\\", "/") for p in (dst / "src").rglob("*") if p.is_file())
 (dst / "files.json").write_text(json.dumps(files), encoding="utf-8", newline="\n")
 print(f"staged {len(files)} scaffold files")

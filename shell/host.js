@@ -3,8 +3,9 @@
 // addresses are BLAKE3 over the bytes the core spells; records live in IndexedDB. Adapters only:
 // nothing here decides, it derives, stores and forwards.
 //
-// Slice 1: settings, apps and their files, versions as kappa snapshots, chats as records, the
-// preview worker registered. The app run machine and the chat stream are the next slices.
+// Slices 1 and 2: settings, apps and their files, versions as kappa snapshots, chats as records,
+// the preview worker, and the app run machine (build in the tab, serve at the version's address).
+// The chat stream is the next slice.
 
 const MARKER = "dyad-ipc-envelope-v1";
 const BASE = new URL("./", import.meta.url); // the shell's directory, wherever it is served
@@ -77,7 +78,9 @@ handlers.set("get-system-platform", () => "web");
 handlers.set("get-app-version", () => ({ version: "1.15.0-web" }));
 handlers.set("native-theme:get-state", () => ({ shouldUseDarkColors: matchMedia("(prefers-color-scheme: dark)").matches }));
 handlers.set("get-initial-load-telemetry-context", () => ({ isFirstSession: false, previousSessionAppSize: null }));
-handlers.set("nodejs-status", () => ({ nodeVersion: null, pnpmVersion: null, nodeDownloadUrl: "", source: null, nodePath: null, managedNodeInstalled: false, managedNodeVersion: null, systemNodeTooOld: false, managedNodeSupported: false }));
+// The build engine is esbuild in the tab; Dyad asks for Node before it shows a preview, so the
+// answer names the engine that will run: no Node is installed or needed.
+handlers.set("nodejs-status", () => ({ nodeVersion: "browser (esbuild in the tab)", pnpmVersion: "browser", nodeDownloadUrl: "", source: "system", nodePath: null, managedNodeInstalled: false, managedNodeVersion: null, systemNodeTooOld: false, managedNodeSupported: false }));
 handlers.set("window-infrastructure:bootstrap", () => ({ windowSessionId: "web-1", currentQueryInvalidationEpoch: 0, missedInvalidations: [], recoveryScopes: [], mayMigrateLegacyChatTabSession: false, restorableWindowSessionIds: [] }));
 for (const c of ["window-infrastructure:set-focused", "window-infrastructure:set-visible-entities", "window-infrastructure:set-chat-tab-ownership", "add-log", "renderer:error-toast-ready", "clear-logs"]) handlers.set(c, () => undefined);
 handlers.set("does-release-note-exist", () => ({ exists: false }));
@@ -157,8 +160,8 @@ handlers.set("rename-app", async ({ appId, appName }) => { const a = await get("
 handlers.set("search-app", async (q) => (await all("apps")).filter((a) => a.name.toLowerCase().includes(String(q || "").toLowerCase())).map(withDates));
 handlers.set("search-app-files", async ({ appId, query }) => { const out = []; for (const p of await filesOf(appId)) { if (p.toLowerCase().includes(String(query || "").toLowerCase())) out.push({ path: p }); } return out; });
 handlers.set("app:get-current-commit-hash", async ({ appId }) => (await get("refs", appId + ":main")) || null);
-handlers.set("app:list-screenshots", () => []);
-handlers.set("app:list-thumbnails", () => ({}));
+handlers.set("app:list-screenshots", () => ({ screenshots: [] }));
+handlers.set("app:list-thumbnails", () => ({ thumbnails: [] }));
 handlers.set("appCollections:list", () => []);
 
 // ---- versions: a branch is a name pointing at an address; rollback restores the object at an
@@ -195,6 +198,122 @@ handlers.set("update-chat", async ({ chatId, title }) => { const c = await get("
 handlers.set("delete-chat", async (id) => { await del("chats", id); });
 handlers.set("search-chats", () => []);
 handlers.set("chat:count-tokens", () => ({ totalTokens: 0, messageHistoryTokens: 0, codebaseTokens: 0, mentionedAppsTokens: 0, inputTokens: 0, systemPromptTokens: 0, contextWindow: 128000 }));
+
+// ---- the app run machine. Dyad's renderer talks to app running as a remote machine: it subscribes
+// to a key and dispatches intents; the host owns the state and publishes snapshots. Here START builds
+// the project in the tab (esbuild-wasm, dependencies through an import map) and serves it through
+// the worker under the model's previewPath of the head address; PROXY_READY is the snapshot with
+// phase ready and that url. No process is spawned anywhere.
+const machines = new Map(); // "app_run:<appId>" -> { revision, state }
+const caps = (phase) => ({ canStart: phase === "idle" || phase === "stopped" || phase === "errored", canRestart: phase === "ready", canRebuild: phase === "ready", canStop: phase === "ready" || phase === "starting", canReload: phase === "ready" });
+function machineOf(appId) {
+  const key = "app_run:" + appId;
+  if (!machines.has(key)) machines.set(key, { revision: 0, state: { appId, revision: 0, previewReloadEpoch: 0, phase: "idle", operation: null, startedAt: null, url: null, operationError: null, exit: null, capabilities: caps("idle"), invocationRef: null, lastSettlement: null } });
+  return machines.get(key);
+}
+function publish(appId, patch) {
+  const m = machineOf(appId);
+  m.revision += 1;
+  m.state = { ...m.state, ...patch, revision: m.revision, capabilities: caps(patch.phase || m.state.phase) };
+  emit("distributed-machine:snapshot", { protocolVersion: 1, machineId: "app_run", encodedKey: { appId }, actorInstanceId: "web-app_run-" + appId, revision: m.revision, encodedState: m.state });
+  return m;
+}
+let esbuildReady = null;
+async function esbuild() {
+  if (!esbuildReady) esbuildReady = import("https://cdn.jsdelivr.net/npm/esbuild-wasm@0.25.5/esm/browser.min.js").then(async (m) => { await m.initialize({ wasmURL: "https://cdn.jsdelivr.net/npm/esbuild-wasm@0.25.5/esbuild.wasm" }); return m; });
+  return esbuildReady;
+}
+async function buildPreview(appId) {
+  await coreReady;
+  const head = await get("refs", appId + ":main");
+  const { path } = core.run({ op: "preview", kappa: head });
+  const appUrl = new URL(path.slice(1), BASE);
+  const files = new Map();
+  for (const p of await filesOf(appId)) files.set(p, await get("files", appId + ":" + p));
+  const pkg = await (await fetch(new URL("scaffold/package.json", BASE))).json();
+  const pkgs = Object.fromEntries(Object.entries(pkg.dependencies).map(([n, v]) => [n, v.replace(/^[\^~]/, "")]));
+  const react = pkgs.react, dom = pkgs["react-dom"];
+  const imports = { react: `https://esm.sh/react@${react}`, "react/": `https://esm.sh/react@${react}/`, "react-dom": `https://esm.sh/react-dom@${dom}?external=react`, "react-dom/": `https://esm.sh/react-dom@${dom}&external=react/` };
+  for (const [n, v] of Object.entries(pkgs)) { if (n === "react" || n === "react-dom") continue; imports[n] = `https://esm.sh/${n}@${v}?external=react,react-dom`; imports[n + "/"] = `https://esm.sh/${n}@${v}&external=react,react-dom/`; }
+  const tw = await (await fetch(new URL("scaffold/tailwind.config.ts", BASE))).text();
+  const m = tw.match(/theme:\s*(\{[\s\S]*\n  \}),\n  plugins/);
+  const tailwindConfig = m ? "{darkMode:['class'],theme:" + m[1] + "}" : "{}";
+  const exts = ["", ".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts"];
+  const resolveFile = (p) => { for (const e of exts) if (files.has(p + e)) return p + e; return null; };
+  const plugin = { name: "project", setup(b) {
+    b.onResolve({ filter: /.*/ }, (args) => {
+      if (args.kind === "entry-point") { const r = resolveFile(args.path); if (r) return { path: r, namespace: "project" }; }
+      if (args.path.startsWith("@/")) { const r = resolveFile("src/" + args.path.slice(2)); if (r) return { path: r, namespace: "project" }; }
+      if (/^\.\.?\//.test(args.path) || args.path.startsWith("/")) {
+        const base = args.importer ? args.importer.split("/").slice(0, -1).join("/") : "src";
+        const norm = new URL(args.path, "file:///" + base + "/").pathname.slice(1);
+        const r = resolveFile(norm); if (r) return { path: r, namespace: "project" };
+        return { errors: [{ text: "not in project: " + norm }] };
+      }
+      return { path: args.path, external: true };
+    });
+    b.onLoad({ filter: /.*/, namespace: "project" }, (args) => {
+      const src = files.get(args.path);
+      if (args.path.endsWith(".css")) return { contents: src.replace(/@tailwind[^;]*;/g, ""), loader: "css" };
+      return { contents: src, loader: args.path.endsWith(".tsx") ? "tsx" : args.path.endsWith(".ts") ? "ts" : "jsx" };
+    });
+  } };
+  const es = await esbuild();
+  const r = await es.build({ entryPoints: ["src/main.tsx"], bundle: true, write: false, format: "esm", target: "es2022", jsx: "automatic", plugins: [plugin], outdir: "out", logLevel: "silent",
+    define: { "import.meta.env.DEV": "true", "import.meta.env.MODE": '"development"', "import.meta.env.BASE_URL": JSON.stringify(appUrl.pathname), "process.env.NODE_ENV": '"development"' } });
+  const js = r.outputFiles.find((f) => f.path.endsWith(".js")).text;
+  const css = (r.outputFiles.find((f) => f.path.endsWith(".css")) || { text: "" }).text;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">${JSON.stringify({ imports })}<\/script>
+<script>tailwind = { config: ${tailwindConfig} };<\/script>
+<script src="https://cdn.tailwindcss.com"><\/script>
+<style>${css}</style></head><body><div id="root"></div>
+<script type="module">${js}<\/script></body></html>`;
+  const cache = await caches.open("previews");
+  await cache.put(appUrl.pathname + "index.html", new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }));
+  return { appUrl: appUrl.href, bytes: js.length };
+}
+handlers.set("distributed-machine:subscribe", async ({ machineId, encodedKey }) => {
+  if (machineId !== "app_run") throw new Error("no browser machine " + machineId);
+  const m = machineOf(encodedKey.appId);
+  return { protocolVersion: 1, machineId, encodedKey, actorInstanceId: "web-app_run-" + encodedKey.appId, revision: m.revision, encodedState: m.state };
+});
+handlers.set("distributed-machine:unsubscribe", () => undefined);
+handlers.set("distributed-machine:dispatch", async ({ machineId, encodedKey, messageId, encodedEvent }) => {
+  if (machineId !== "app_run") throw new Error("no browser machine " + machineId);
+  const appId = encodedKey.appId, type = encodedEvent && encodedEvent.type;
+  const receipt = (m) => ({ kind: "applied", actorInstanceId: "web-app_run-" + appId, revision: m.revision, transactionSequence: m.revision, messageId });
+  if (type === "START" || type === "RESTART" || type === "MANUAL_RELOAD") {
+    const op = type === "START" ? "run" : type === "RESTART" ? (encodedEvent.operation === "rebuild" ? "rebuild" : "restart") : "reload";
+    const m = publish(appId, { phase: type === "MANUAL_RELOAD" ? "reloading" : "starting", operation: op, startedAt: Date.now(), operationError: null, exit: null });
+    (async () => {
+      try {
+        const { appUrl } = await buildPreview(appId);
+        const cur = machineOf(appId);
+        publish(appId, { phase: "ready", operation: null, url: { appUrl, originalUrl: appUrl, mode: "cloud" }, previewReloadEpoch: cur.state.previewReloadEpoch + 1, lastSettlement: { operationId: encodedEvent.operationId || messageId, kind: "run", outcome: "succeeded" } });
+      } catch (e) {
+        publish(appId, { phase: "errored", operation: null, operationError: { message: String((e && e.message) || e) }, lastSettlement: { operationId: encodedEvent.operationId || messageId, kind: "run", outcome: "failed", error: { message: String((e && e.message) || e) } } });
+      }
+    })();
+    return receipt(m);
+  }
+  if (type === "STOP_REQUESTED") {
+    const m = publish(appId, { phase: "stopped", operation: null, url: null, exit: { exitCode: 0, timestamp: Date.now() }, lastSettlement: { operationId: encodedEvent.operationId || messageId, kind: "stop", outcome: "succeeded" } });
+    return receipt(m);
+  }
+  return { kind: "ignored", actorInstanceId: "web-app_run-" + appId, revision: machineOf(appId).revision, messageId, reason: "unknown intent " + type };
+});
+handlers.set("connection-flow:get-states", () => ({ github: { status: "disconnected", revision: 0 }, supabase: { status: "disconnected", revision: 0 }, neon: { status: "disconnected", revision: 0 } }));
+handlers.set("window-infrastructure:attach-interest", () => undefined);
+handlers.set("window-infrastructure:detach-interest", () => undefined);
+handlers.set("is-capacitor", () => false);
+handlers.set("get-app-theme", () => null);
+handlers.set("get-proposal", () => null);
+handlers.set("select-app-for-preview", () => undefined);
+handlers.set("git:get-uncommitted-files", () => []);
+handlers.set("reload-env-path", () => undefined);
+handlers.set("get-cloud-sandbox-status", () => null);
+window.__preview = buildPreview;
 
 // ---- the surface
 function dispatch(channel, args) {

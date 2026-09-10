@@ -10,10 +10,12 @@
 //!   {"op":"preimage","project":{"label":"…","entries":[{"path","kappa","bytes"}]},"parent":"…"} -> {"bytes":"…"}
 //!   {"op":"restore","derived":"blake3:…","expected":"blake3:…"} -> {"decision":"Accept"|"Refuse"}
 //!   {"op":"network","endpoints":["https://…"],"origin":"https://…"} -> {"decision":"Accept"|"Refuse"}
+//!   {"op":"preview","kappa":"blake3:…"} -> {"path":"/p/blake3:…/"}
+//!   {"op":"head","refs":[{"branch","kappa"}],"branch":"main"} -> {"kappa":"blake3:…"|null}
 //!   {"op":"view"} -> the View record as JSON
 //! Errors: {"error":"…"}.
 
-use crate::{networkDecision, restoreDecision, snapshotPreimage, view, Capabilities, Decision, Entry, Grant, Project};
+use crate::{headOf, networkDecision, previewPath, restoreDecision, snapshotPreimage, view, Capabilities, Decision, Entry, Grant, Project, Ref};
 use serde_json::{json, Value};
 
 fn text(value: &Value) -> String {
@@ -55,6 +57,11 @@ fn run(input: &[u8]) -> Value {
                     .unwrap_or_default(),
             };
             decision(networkDecision(&caps, text(&value["origin"])))
+        }
+        "preview" => json!({ "path": previewPath(text(&value["kappa"])) }),
+        "head" => {
+            let refs: Vec<Ref> = value["refs"].as_array().map(|l| l.iter().map(|r| Ref { branch: text(&r["branch"]), kappa: text(&r["kappa"]) }).collect()).unwrap_or_default();
+            json!({ "kappa": headOf(&refs, text(&value["branch"])) })
         }
         "view" => view_json(),
         other => json!({ "error": format!("unknown op {other:?}") }),
