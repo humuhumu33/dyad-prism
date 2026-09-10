@@ -4,3 +4,6 @@ target/
 core/target/
 __pycache__/
 shell/core.wasm
+shell/app/
+vendor/dyad/node_modules/
+shell/scaffold/

@@ -35,6 +35,11 @@ jobs:
         run: ./scripts/lane.sh
       - name: Byte identity corpus and shell hash check
         run: python3 tools/corpus.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: The vendored renderer, built into the shell (no Electron, no src/pro)
+        run: cd vendor/dyad && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --engine-strict=false --force --no-audit --no-fund --loglevel=error && npx vite build --config vite.renderer.config.mts --base ./ --outDir ../../shell/app --emptyOutDir && python3 ../../scripts/stamp_shell.py
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: shell
