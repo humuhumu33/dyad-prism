@@ -12,12 +12,12 @@ Every claim carries its honesty level: `some-true` (from a source, not establish
 | Verify | a theorem Lean cannot close by the stated proof, or a declaration whose observed axioms differ from its pinned exact set (`tools/axioms.json`) | build | armed 2026-09-10: `plant.sh words` (headline changed in the model, theorem kept) and `plant.sh grant` (`admits [] = true`) both made `rfl` fail in `lexlean verify`; restored, verify green |
 | Export | two lean4-prod exports that are not byte identical | build | pending |
 | Codegen | two prod-codegen runs that are not byte identical, or generated Rust that drifted from `generated/dyad_core.rs` | build | pending |
-| Words | a `shell/index.html` whose committed or staged words differ from the projection of `view()` (the projector rewrites the page, then the lane compares against the index) | build | see the plant log; `plant.sh shell` stages a hand edit |
+| Words | a `shell/index.html` whose committed or staged words differ from the projection of `view()` (the projector rewrites the page, then the lane compares against the index) | build | armed 2026-09-10: `plant.sh shell` staged a hand edit of the headline; the lane's compare refused it; restored, green |
 | Bytes | a generated function whose bytes differ from the rule on any corpus case (`model/corpus.json`) | build | armed 2026-09-10: `plant.sh bytes` changed one expected preimage; the corpus test failed on that case; restored, green |
 | Restore | stored bytes that do not re-derive to their address (spike 6, planted flipped bit refused) | build | armed in the spike, to be re-armed here |
 | Capability | a preview request to an origin no grant lists (spike 7, 403 with an audit row) | build | armed in the spike, to be re-armed here |
 
-A gate is trusted only after a planted defect has been seen to trip it and a restore commit has been seen to clear it. `scripts/plant.sh` will hold the defects; the rows above say pending until each has been run.
+A gate is trusted only after a planted defect has been seen to trip it and a restore commit has been seen to clear it. `scripts/plant.sh` holds the defects. Authority, lock, check, export and codegen say pending: their defects are the next plants. CI (ubuntu, first run) went green on 91f0535, and Pages deploys `shell/`.
 
 ## Theorems (Lean 4.32.1, leanchecker replayed, proof by reflexivity)
 
