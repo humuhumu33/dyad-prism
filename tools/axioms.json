@@ -64,12 +64,38 @@
   "Quot.sound",
   "propext"
  ],
+ "headOf": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
  "networkDecision": [
   "Classical.choice",
   "Quot.sound",
   "propext"
  ],
+ "no_head_without_refs": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "previewPath": [
+  "propext"
+ ],
+ "preview_path_shape": [
+  "propext"
+ ],
  "projectName": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "refBranch": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "refKappa": [
   "Classical.choice",
   "Quot.sound",
   "propext"

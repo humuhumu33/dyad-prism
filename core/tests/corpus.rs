@@ -1,7 +1,7 @@
 //! Byte identity of the generated core against the host's rule, on the fixed corpus
 //! `tools/corpus.py` writes to `model/corpus.json`.
 
-use dyad_core::{networkDecision, restoreDecision, snapshotPreimage, Capabilities, Decision, Entry, Grant, Project};
+use dyad_core::{headOf, networkDecision, previewPath, restoreDecision, snapshotPreimage, Capabilities, Decision, Entry, Grant, Project, Ref};
 use serde_json::Value;
 
 fn corpus() -> Vec<Value> {
@@ -48,6 +48,13 @@ fn preimage_and_decisions_match_the_rule_on_every_case() {
         let r = &case["restore"];
         let rd = restoreDecision(r["derived"].as_str().unwrap().to_owned(), r["expected"].as_str().unwrap().to_owned());
         assert_eq!(decision_name(&rd), r["decision"].as_str().unwrap(), "restore decision differs on case {name}");
+    }
+    for case in &cases {
+        let name = case["name"].as_str().unwrap();
+        let refs: Vec<Ref> = case["refs"].as_array().unwrap().iter().map(|r| Ref { branch: r["branch"].as_str().unwrap().to_owned(), kappa: r["kappa"].as_str().unwrap().to_owned() }).collect();
+        let head = headOf(&refs, case["branch"].as_str().unwrap().to_owned());
+        assert_eq!(head.as_deref(), case["head"].as_str(), "head differs on case {name}");
+        assert_eq!(previewPath("blake3:".to_owned() + &"a1".repeat(32)), case["previewPath"].as_str().unwrap(), "preview path differs on case {name}");
     }
     println!("corpus: {} cases byte identical", cases.len());
 }

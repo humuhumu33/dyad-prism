@@ -11,6 +11,8 @@
 
   (type "PrismDyad.Dyad.Decision" (ctor "PrismDyad.Dyad.Decision.Accept") (ctor "PrismDyad.Dyad.Decision.Refuse"))
 
+  (type "PrismDyad.Dyad.Ref" (ctor "PrismDyad.Dyad.Ref.mk" (branch String) (kappa String)))
+
   (type "PrismDyad.Dyad.Entry" (ctor "PrismDyad.Dyad.Entry.mk" (path String) (kappa String) (bytes UInt64)))
 
   ;; full: PrismDyad.Dyad.admits
@@ -60,13 +62,31 @@
   (def grantEndpoint ((grant (named "PrismDyad.Dyad.Grant"))) String
     (let _x_8 (proj "PrismDyad.Dyad.Grant" "endpoint" grant) (let _x_9 (string "\n") (let _x_20 2147483647 (let _x_13 (split-exact _x_8 _x_9 _x_20) (cases _x_13 (alt "Option.none" () (let _x_23 (string "") _x_23)) (alt "Option.some" (val_16) (let _x_24 (string "\n") (let _x_25 (join val_16 _x_24) _x_25)))))))))
 
+  ;; full: PrismDyad.Dyad.headOf
+  ;; arity: 7 erased/type args dropped
+  (def headOf ((x_1 (List (named "PrismDyad.Dyad.Ref"))) (x_2 String)) (Option String)
+    (cases x_1 (alt "List.nil" () (let _x_32 (ctor "Option.none") _x_32)) (alt "List.cons" (head_21 tail_22) (let _x_40 0 (let _x_41 0 (let _x_42 (call refBranch head_21) (let _x_43 (eq _x_42 x_2) (cases _x_43 (alt "Bool.false" () (let _x_56 (call headOf tail_22 x_2) _x_56)) (alt "Bool.true" () (let _x_57 (call refKappa head_21) (let _x_58 (ctor "Option.some" _x_57) _x_58)))))))))))
+
   ;; full: PrismDyad.Dyad.networkDecision
   (def networkDecision ((capabilities (named "PrismDyad.Dyad.Capabilities")) (origin String)) (named "PrismDyad.Dyad.Decision")
     (let _x_1 (proj "PrismDyad.Dyad.Capabilities" "endpoints" capabilities) (let _x_2 (call admits _x_1 origin) (cases _x_2 (alt "Bool.false" () (let _x_25 (ctor "PrismDyad.Dyad.Decision.Refuse") _x_25)) (alt "Bool.true" () (let _x_26 (ctor "PrismDyad.Dyad.Decision.Accept") _x_26))))))
 
+  ;; full: PrismDyad.Dyad.previewPath
+  ;; arity: 4 erased/type args dropped
+  (def previewPath ((kappa String)) String
+    (let _x_1 (string "/p/") (let _x_2 (string "/") (let _x_3 (ctor "List.nil") (let _x_4 (ctor "List.cons" _x_2 _x_3) (let _x_5 (ctor "List.cons" kappa _x_4) (let _x_6 (ctor "List.cons" _x_1 _x_5) (let _x_7 (string "") (let _x_8 (join _x_6 _x_7) _x_8)))))))))
+
   ;; full: PrismDyad.Dyad.projectName
   (def projectName ((project (named "PrismDyad.Dyad.Project"))) String
     (let _x_8 (proj "PrismDyad.Dyad.Project" "label" project) (let _x_9 (string "\n") (let _x_20 2147483647 (let _x_13 (split-exact _x_8 _x_9 _x_20) (cases _x_13 (alt "Option.none" () (let _x_23 (string "") _x_23)) (alt "Option.some" (val_16) (let _x_24 (string "\n") (let _x_25 (join val_16 _x_24) _x_25)))))))))
+
+  ;; full: PrismDyad.Dyad.refBranch
+  (def refBranch ((ref (named "PrismDyad.Dyad.Ref"))) String
+    (let _x_8 (proj "PrismDyad.Dyad.Ref" "branch" ref) (let _x_9 (string "\n") (let _x_20 2147483647 (let _x_13 (split-exact _x_8 _x_9 _x_20) (cases _x_13 (alt "Option.none" () (let _x_23 (string "") _x_23)) (alt "Option.some" (val_16) (let _x_24 (string "\n") (let _x_25 (join val_16 _x_24) _x_25)))))))))
+
+  ;; full: PrismDyad.Dyad.refKappa
+  (def refKappa ((ref (named "PrismDyad.Dyad.Ref"))) String
+    (let _x_8 (proj "PrismDyad.Dyad.Ref" "kappa" ref) (let _x_9 (string "\n") (let _x_20 2147483647 (let _x_13 (split-exact _x_8 _x_9 _x_20) (cases _x_13 (alt "Option.none" () (let _x_23 (string "") _x_23)) (alt "Option.some" (val_16) (let _x_24 (string "\n") (let _x_25 (join val_16 _x_24) _x_25)))))))))
 
   ;; full: PrismDyad.Dyad.restoreDecision
   ;; arity: 5 erased/type args dropped

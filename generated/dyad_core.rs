@@ -36,6 +36,12 @@ pub enum Decision {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ref {
+    pub branch: alloc::string::String,
+    pub kappa: alloc::string::String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     pub path: alloc::string::String,
     pub kappa: alloc::string::String,
@@ -119,6 +125,16 @@ pub fn grantEndpoint(grant: &crate::Grant) -> alloc::string::String {
     } } } }
 }
 
+pub fn headOf(x_1: &[crate::Ref], x_2: alloc::string::String) -> Option<alloc::string::String> {
+    match x_1 {
+        [] => None,
+        [head_21, tail_22 @ ..] => { let _x_42 = refBranch(&(head_21)); { let _x_43 = (_x_42 == x_2.clone()); match _x_43 {
+        false => { let _x_56 = headOf(&(tail_22), x_2.clone()); _x_56 },
+        true => { let _x_57 = refKappa(&(head_21)); { let _x_58 = Some(_x_57); _x_58 } },
+    } } },
+    }
+}
+
 pub fn networkDecision(capabilities: &crate::Capabilities, origin: alloc::string::String) -> crate::Decision {
     { let _x_1 = &(capabilities).endpoints; { let _x_2 = admits(&(_x_1), (origin).as_ref()); match _x_2 {
         false => { let _x_25 = crate::Decision::Refuse; _x_25 },
@@ -126,8 +142,26 @@ pub fn networkDecision(capabilities: &crate::Capabilities, origin: alloc::string
     } } }
 }
 
+pub fn previewPath(kappa: alloc::string::String) -> alloc::string::String {
+    { let _x_4 = alloc::vec![alloc::string::String::from("/")]; { let _x_5 = { let mut __list = alloc::vec![kappa]; __list.extend(_x_4); __list }; { let _x_6 = { let mut __list = alloc::vec![alloc::string::String::from("/p/")]; __list.extend(_x_5); __list }; { let _x_8 = (_x_6).join(&alloc::string::String::from("")); _x_8 } } } }
+}
+
 pub fn projectName(project: &crate::Project) -> alloc::string::String {
     { let _x_8 = &(project).label; { let _x_20 = 2147483647; { let _x_13 = { let __value = _x_8; let __delimiter = alloc::string::String::from("\n"); let __maximum = usize::try_from(_x_20).ok(); if __delimiter.is_empty() { None } else { let __fields: alloc::vec::Vec<alloc::string::String> = __value.split(&__delimiter).map(alloc::string::String::from).collect(); __maximum.filter(|__maximum| __fields.len() <= *__maximum).map(|_| __fields) } }; match _x_13 {
+        None => alloc::string::String::from(""),
+        Some(val_16) => { let _x_25 = (val_16).join(&alloc::string::String::from("\n")); _x_25 },
+    } } } }
+}
+
+pub fn refBranch(__prod_ref: &crate::Ref) -> alloc::string::String {
+    { let _x_8 = &(__prod_ref).branch; { let _x_20 = 2147483647; { let _x_13 = { let __value = _x_8; let __delimiter = alloc::string::String::from("\n"); let __maximum = usize::try_from(_x_20).ok(); if __delimiter.is_empty() { None } else { let __fields: alloc::vec::Vec<alloc::string::String> = __value.split(&__delimiter).map(alloc::string::String::from).collect(); __maximum.filter(|__maximum| __fields.len() <= *__maximum).map(|_| __fields) } }; match _x_13 {
+        None => alloc::string::String::from(""),
+        Some(val_16) => { let _x_25 = (val_16).join(&alloc::string::String::from("\n")); _x_25 },
+    } } } }
+}
+
+pub fn refKappa(__prod_ref: &crate::Ref) -> alloc::string::String {
+    { let _x_8 = &(__prod_ref).kappa; { let _x_20 = 2147483647; { let _x_13 = { let __value = _x_8; let __delimiter = alloc::string::String::from("\n"); let __maximum = usize::try_from(_x_20).ok(); if __delimiter.is_empty() { None } else { let __fields: alloc::vec::Vec<alloc::string::String> = __value.split(&__delimiter).map(alloc::string::String::from).collect(); __maximum.filter(|__maximum| __fields.len() <= *__maximum).map(|_| __fields) } }; match _x_13 {
         None => alloc::string::String::from(""),
         Some(val_16) => { let _x_25 = (val_16).join(&alloc::string::String::from("\n")); _x_25 },
     } } } }

@@ -9,8 +9,12 @@ escapeNewline
 escapeQuote
 escapeReturn
 grantEndpoint
+headOf
 networkDecision
+previewPath
 projectName
+refBranch
+refKappa
 restoreDecision
 snapshotPreimage
 view

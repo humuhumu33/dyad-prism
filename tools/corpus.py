@@ -27,9 +27,17 @@ def decision(endpoints, origin):
 
 K1 = "blake3:" + "a1" * 32
 K2 = "blake3:" + "b2" * 32
+def head_of(refs, branch):
+    # headOf: the first ref whose branch equals the name; none otherwise.
+    for b_, k in refs:
+        if b_ == branch: return k
+    return None
+
 cases = []
-def case(name, label, entries, parent="", endpoints=(), origin="https://esm.sh"):
+def case(name, label, entries, parent="", endpoints=(), origin="https://esm.sh", refs=(), branch="main"):
     cases.append({
+        "refs": [{"branch": b_, "kappa": k} for b_, k in refs], "branch": branch, "head": head_of(refs, branch),
+        "previewPath": "/p/" + K1 + "/",
         "name": name, "label": label,
         "entries": [{"path": p, "kappa": k, "bytes": n} for p, k, n in entries],
         "parent": parent, "preimage": preimage(label, entries, parent),
@@ -53,6 +61,10 @@ case("second grant matches", "g2", [], endpoints=("https://cdn.tailwindcss.com",
 case("no grants", "n", [], endpoints=(), origin="https://example.com")
 case("prefix is not equality", "p", [], endpoints=("https://esm.sh/react",), origin="https://esm.sh")
 case("tampered", "t", [("x", K1, 1)])
+case("head of main", "h", [], refs=(("main", K1),), branch="main")
+case("head of other branch", "h2", [], refs=(("main", K1), ("draft", K2)), branch="draft")
+case("first ref wins", "h3", [], refs=(("main", K1), ("main", K2)), branch="main")
+case("no such branch", "h4", [], refs=(("main", K1),), branch="draft")
 
 out = root / "model" / "corpus.json"
 out.write_text(json.dumps(cases, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")

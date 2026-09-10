@@ -138,6 +138,19 @@ decls = [
     definition("networkDecision", [("capabilities", named("Capabilities")), ("origin", STRING)], named("Decision"),
         if_(call("admits", project("endpoints", var("capabilities")), var("origin")), ctor("Decision.Accept"), ctor("Decision.Refuse"))),
 
+    # ---- versions: a branch is a name pointing at an address; the first ref for a branch is its head
+    structure("Ref", branch=STRING, kappa=STRING),
+    definition("refBranch", [("ref", named("Ref"))], STRING, owned(project("branch", var("ref")))),
+    definition("refKappa", [("ref", named("Ref"))], STRING, owned(project("kappa", var("ref")))),
+    definition("headOf", [("refs", lst(named("Ref"))), ("branch", STRING)], opt(STRING),
+        match(var("refs"),
+            branch("List.nil", [], ctor("Option.none", targs=[STRING])),
+            branch("List.cons", ["ref", "rest"],
+                if_(equal(call("refBranch", var("ref")), var("branch")), ctor("Option.some", call("refKappa", var("ref")), targs=[STRING]), call("headOf", var("rest"), var("branch"))))),
+        recursive="refs"),
+    # ---- preview: a project state is served under its own address on the page origin
+    definition("previewPath", [("kappa", STRING)], STRING, join(strings(s("/p/"), var("kappa"), s("/")))),
+
     # ---- the words
     definition("view", [], named("View"), record("View",
         headline=s("Own Your Ideas"),
@@ -156,6 +169,8 @@ decls = [
     theorem("admits_nothing_without_grants", eq(call("admits", nil(named("Grant")), s("https://example.com")), b(False))),
     theorem("refuses_without_grants",
         eq(call("networkDecision", record("Capabilities", endpoints=nil(named("Grant"))), s("https://example.com")), ctor("Decision.Refuse"))),
+    theorem("no_head_without_refs", eq(call("headOf", nil(named("Ref")), s("main")), ctor("Option.none", targs=[STRING]))),
+    theorem("preview_path_shape", eq(call("previewPath", s("k")), join(strings(s("/p/"), s("k"), s("/"))))),
     theorem("empty_project_preimage",
         eq(call("snapshotPreimage", record("Project", label=s("a"), entries=nil(named("Entry"))), s("")),
            join(strings(s('{"entries":['), call("entryLines", nil(named("Entry"))), s('],"name":'), q(call("projectName", record("Project", label=s("a"), entries=nil(named("Entry"))))), s(',"parent":'), q(s("")), s("}"))))),
