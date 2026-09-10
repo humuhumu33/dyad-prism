@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#d8e1fc">
+<title>Own Your Ideas</title>
+<meta name="description" content="Describe it. It builds, runs and stays yours, in this browser, on no server.">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main>
+  <h1>Own Your Ideas</h1>
+  <p class="lede">Describe it. It builds, runs and stays yours, in this browser, on no server.</p>
+  <form class="composer" id="composer">
+    <textarea id="input" rows="1" placeholder="What do you want to build?" autocomplete="off" autofocus></textarea>
+    <div class="row"><span class="hint mono" id="hint"></span><button class="btn" id="send" type="submit" aria-label="Build">Build</button></div>
+  </form>
+</main>
+<script type="application/json" id="view">{"buildingLabel":"building in your browser","headline":"Own Your Ideas","lede":"Describe it. It builds, runs and stays yours, in this browser, on no server.","offlineLabel":"offline, working from your device","previewLabel":"Preview","promptPlaceholder":"What do you want to build?","refusedLabel":"Refused: not what it claims to be","rollbackLabel":"Go back","sendLabel":"Build","snapshotLabel":"Sealed"}</script>
+<script type="module" src="shell.js"></script>
+</body>
+</html>

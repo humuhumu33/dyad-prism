@@ -1,0 +1,87 @@
+{
+ "admits": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "admits_nothing_without_grants": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "empty_project_preimage": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "entryKappa": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "entryLine": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "entryLines": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "entryPath": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "escapeBackslash": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "escapeJson": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "escapeNewline": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "escapeQuote": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "escapeReturn": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "grantEndpoint": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "networkDecision": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "projectName": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "refuses_without_grants": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "snapshotPreimage": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ]
+}

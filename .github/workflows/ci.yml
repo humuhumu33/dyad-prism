@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lane:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Cache the lane work directory (PrismPM at the pinned commit, its built LexLean, the Lean toolchain)
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/dyad-prism-lane
+            ~/.elan
+          key: lane-${{ hashFiles('PRISMPM_REV', 'lean-toolchain') }}
+      - name: The authored model is what the author script writes
+        run: python3 tools/author.py && git diff --exit-code -- src/Dyad.lex.tex
+      - name: The lane, byte compared against the committed artifacts
+        run: ./scripts/lane.sh
+      - name: Byte identity corpus
+        run: python3 tools/corpus.py

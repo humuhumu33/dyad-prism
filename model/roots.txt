@@ -1,0 +1,16 @@
+admits
+entryKappa
+entryLine
+entryLines
+entryPath
+escapeBackslash
+escapeJson
+escapeNewline
+escapeQuote
+escapeReturn
+grantEndpoint
+networkDecision
+projectName
+restoreDecision
+snapshotPreimage
+view

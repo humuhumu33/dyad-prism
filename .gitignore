@@ -1,0 +1,6 @@
+.lexlean/
+.prism/
+target/
+core/target/
+__pycache__/
+shell/core.wasm

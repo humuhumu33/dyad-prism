@@ -1,0 +1,5 @@
+{
+  "erased_proof_dependencies": [],
+  "included_definitions": ["PrismDyad.Dyad.admits","PrismDyad.Dyad.entryKappa","PrismDyad.Dyad.entryLine","PrismDyad.Dyad.entryLines","PrismDyad.Dyad.entryPath","PrismDyad.Dyad.escapeBackslash","PrismDyad.Dyad.escapeJson","PrismDyad.Dyad.escapeNewline","PrismDyad.Dyad.escapeQuote","PrismDyad.Dyad.escapeReturn","PrismDyad.Dyad.grantEndpoint","PrismDyad.Dyad.networkDecision","PrismDyad.Dyad.projectName","PrismDyad.Dyad.restoreDecision","PrismDyad.Dyad.snapshotPreimage","PrismDyad.Dyad.view"],
+  "requested_roots": ["PrismDyad.Dyad.admits","PrismDyad.Dyad.entryKappa","PrismDyad.Dyad.entryLine","PrismDyad.Dyad.entryLines","PrismDyad.Dyad.entryPath","PrismDyad.Dyad.escapeBackslash","PrismDyad.Dyad.escapeJson","PrismDyad.Dyad.escapeNewline","PrismDyad.Dyad.escapeQuote","PrismDyad.Dyad.escapeReturn","PrismDyad.Dyad.grantEndpoint","PrismDyad.Dyad.networkDecision","PrismDyad.Dyad.projectName","PrismDyad.Dyad.restoreDecision","PrismDyad.Dyad.snapshotPreimage","PrismDyad.Dyad.view"]
+}
