@@ -1,8 +1,8 @@
 //! The shell projector: renders the landing page and the shell's closure from the generated `view()`.
 //!
 //! An adapter, not the model: every visible word comes from the Lean verified `View` record; this
-//! file owns only markup. It writes `shell/index.html` (the hero with the appearance system, the
-//! who pill, the connect pill and sheet), `shell/holo.html` (the runner for published
+//! file owns only markup. It writes `shell/index.html` (Dyad's UI at the root, with the appearance
+//! switch: Immersive, Dark, Light), `shell/holo.html` (the runner for published
 //! applications), `shell/app.webmanifest`, `shell/v1/openapi.json`,
 //! `shell/manifest.json` (the hash list the service worker precaches from, so the shell is one
 //! versioned closure) and `shell/sw.js` from `shell/sw.template.js` with the closure digest inside.
@@ -19,14 +19,20 @@ fn esc(text: &str) -> String {
 }
 
 fn page() -> String {
+    // The homepage is Dyad's own UI, whole, at the root of the shell: its renderer is built by Vite
+    // into assets/ with fixed names (scripts/vite.shell.config.mts), the host runs first so
+    // window.electron exists when the contracts read it, and the appearance switch from the
+    // landing page stays: Immersive (a curated photo behind frosted panels), Dark, Light, kept as
+    // Hologram OS keeps it (holo.theme.v1) and mirrored into Dyad's own theme class.
     let v = view();
     let mut h = String::new();
     let _ = write!(
         h,
         r##"<!doctype html>
-<html lang="en">
+<html lang="en" class="notranslate" translate="no">
 <head>
 <meta charset="utf-8">
+<meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#151312">
@@ -34,117 +40,53 @@ fn page() -> String {
 <meta name="description" content="{lede}">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
 <link rel="manifest" href="app.webmanifest">
-<link rel="stylesheet" href="shell.css">
+<link rel="stylesheet" href="assets/index.css">
+<link rel="stylesheet" href="appearance.css">
 <script>
 // Pre paint appearance, the same canonical state Hologram OS keeps (holo.theme.v1: palette, immersive,
 // wallpaper) and the same hooks (data-holo-palette, data-holo-immersive, --holo-wallpaper, color-scheme),
-// so the first frame already wears the chosen look. First run, and once for anyone who chose before
-// look 3: immersive on the first curated photo; Dark and Light are one click away.
+// mirrored into Dyad's theme class and its localStorage "theme", so the first frame already wears the
+// chosen look. First run, and once for anyone who chose before look 3: immersive on the first curated
+// photo; Dark and Light are one click away.
 (function () {{
   var root = document.documentElement, s = null;
   try {{ s = JSON.parse(localStorage.getItem("holo.theme.v1") || "null"); }} catch (e) {{}}
   if (!s || s.look !== 3) {{ s = {{ look: 3, palette: "dark", immersive: true, wallpaper: "wallpapers/{wall0}" }}; try {{ localStorage.setItem("holo.theme.v1", JSON.stringify(s)); }} catch (e) {{}} }}
-  root.setAttribute("data-holo-palette", s.palette === "light" ? "light" : "dark");
+  var palette = s.palette === "light" ? "light" : "dark";
+  root.setAttribute("data-holo-palette", palette);
   root.setAttribute("data-holo-immersive", s.immersive ? "on" : "off");
-  root.style.setProperty("color-scheme", s.palette === "light" ? "light" : "dark");
+  root.style.setProperty("color-scheme", palette);
   if (s.wallpaper) root.style.setProperty("--holo-wallpaper", "url(" + JSON.stringify(s.wallpaper) + ")");
+  root.classList.remove("light", "dark"); root.classList.add(palette);
+  try {{ localStorage.setItem("theme", palette); }} catch (e) {{}}
 }})();
 </script>
-</head>
-<body>
-<a class="mark" href="./" aria-label="Hologram"><img class="on-dark" src="lockup-white.svg" alt="Hologram" width="157" height="30"><img class="on-light" src="lockup-black.svg" alt="Hologram" width="157" height="30"></a>
-<button class="appearance" id="appearance" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="{appearance}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-<div class="popover" id="popover" role="dialog" aria-label="{appearance}" hidden>
-  <button class="mode" type="button" data-mode="immersive"><span>{immersive}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-8 8M3 18l4-4 3 3"/></svg></button>
-  <div class="walls" id="walls">{walls}</div>
-  <button class="mode" type="button" data-mode="dark"><span>{dark}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
-  <button class="mode" type="button" data-mode="light"><span>{light}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-</div>
 <script type="application/json" id="wallpapers">{walls_json}</script>
 <script type="application/json" id="view">{view_json}</script>
-<main>
-  <h1>{title}</h1>
-  <p class="lede">{lede}</p>
-  <div class="messages" id="messages"></div>
-  <form class="composer" id="composer">
-    <textarea id="input" rows="1" placeholder="{placeholder}" autocomplete="off" autofocus></textarea>
-    <div class="keyrow" id="keyrow" hidden>
-      <input class="key" id="key" type="password" placeholder="{key_placeholder}" aria-label="{key_label}" autocomplete="off" spellcheck="false">
-      <span class="hint mono" id="keyhint">{paid_once}</span>
-    </div>
-    <div class="row">
-      <div class="who">
-        <button class="who-pill" id="whoPill" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="{local} / {paid}"><span id="whoCurrent">{local}</span><svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
-        <div class="who-menu" id="whoMenu" role="listbox" aria-label="{local} / {paid}" hidden>{who_options}</div>
-      </div>
-      <button class="pill" id="connect" type="button" hidden aria-haspopup="dialog" aria-expanded="false"><span class="dot" id="pillDot"></span>{connect}</button>
-      <span class="hint mono" id="hint"></span>
-      <button class="btn" id="send" type="submit" aria-label="{send}">{send}</button>
-    </div>
-  </form>
-</main>
-<div class="scrim" id="scrim" hidden></div>
-<section class="sheet" id="sheet" role="dialog" aria-label="{connect}" hidden>
-  <div class="state"><span class="dot" id="sheetDot"></span><span id="state">{not_connected}</span></div>
-  <p class="ask" id="ask" hidden>{ask}</p>
-  <div class="step">
-    <div class="steph"><span>{run}</span><span class="tabs"><button class="ostab" type="button" data-os="mac" aria-pressed="true">{mac}</button><button class="ostab" type="button" data-os="win" aria-pressed="false">{windows}</button></span></div>
-    <div class="cmd"><code class="mono" id="cmd"></code><button class="copy" type="button" data-copy="cmd">{copy}</button></div>
-    <div class="steph sub"><span>{verify}</span><span class="mono" id="hash"></span></div>
-    <div class="cmd"><code class="mono" id="verifycmd"></code><button class="copy" type="button" data-copy="verifycmd">{copy}</button></div>
-  </div>
-  <div class="step">
-    <div class="steph"><span>{base_url}</span><span class="mono" id="modelId"></span></div>
-    <div class="cmd"><code class="mono" id="baseUrl"></code><button class="copy" type="button" data-copy="baseUrl">{copy}</button></div>
-    <div class="steph sub"><span>{any_key}</span></div>
-  </div>
-  <div class="step">
-    <div class="steph"><span class="tabs" id="snips"></span></div>
-    <div class="cmd"><pre class="mono" id="snippet"></pre><button class="copy" type="button" data-copy="snippet">{copy}</button></div>
-  </div>
-  <div class="step test"><button class="btn" id="test" type="button" disabled>{test}</button><span class="hint mono" id="testOut"></span></div>
-  <p class="foot">{stay_open}</p>
-</section>
-<script type="module" src="shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<button class="appearance" id="appearance" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="{appearance}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg></button>
+<div class="popover" id="popover" role="dialog" aria-label="{appearance}" hidden>
+  <button class="mode" type="button" data-mode="immersive"><span>{immersive}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M3 15l5-5 4 4 3-3 6 6"></path><circle cx="16" cy="8" r="1.5"></circle></svg></button>
+  <div class="walls" id="walls">{walls}</div>
+  <button class="mode" type="button" data-mode="dark"><span>{dark}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
+  <button class="mode" type="button" data-mode="light"><span>{light}</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg></button>
+</div>
+<script type="module" src="host.js"></script>
+<script type="module" src="assets/index.js"></script>
+<script type="module" src="appearance.js"></script>
 </body>
 </html>
 "##,
         title = esc(&v.headline),
         lede = esc(&v.lede),
-        placeholder = esc(&v.promptPlaceholder),
-        send = esc(&v.sendLabel),
         appearance = esc(&v.appearanceLabel),
         dark = esc(&v.darkLabel),
         light = esc(&v.lightLabel),
         immersive = esc(&v.immersiveLabel),
         wall0 = esc(&v.wallpapers[0].file),
-        local = esc(&v.localLabel),
-        paid = esc(&v.paidLabel),
-        key_label = esc(&v.keyLabel),
-        key_placeholder = esc(&v.keyPlaceholder),
-        paid_once = esc(&v.paidOnceLabel),
-        who_options = {
-            // Who can answer: your device first, then each paid model. Choosing a model is choosing
-            // the provider, so there is no second control.
-            let mut s = format!(r#"<button class="opt" type="button" role="option" data-provider="local" data-model="" aria-selected="true">{}</button>"#, esc(&v.localLabel));
-            for m in &v.paidModels {
-                s.push_str(&format!(r#"<button class="opt" type="button" role="option" data-provider="paid" data-model="{}" aria-selected="false">{}</button>"#, esc(&m.id), esc(&m.label)));
-            }
-            s
-        },
-        connect = esc(&v.connectLabel),
-        not_connected = esc(&v.notConnectedLabel),
-        ask = esc(&v.askLabel),
-        run = esc(&v.runLabel),
-        mac = esc(&v.macLabel),
-        windows = esc(&v.windowsLabel),
-        copy = esc(&v.copyLabel),
-        verify = esc(&v.verifyLabel),
-        base_url = esc(&v.baseUrlLabel),
-        any_key = esc(&v.anyKeyLabel),
-        test = esc(&v.testLabel),
-        stay_open = esc(&v.stayOpenLabel),
-        walls = v.wallpapers.iter().map(|w| format!(r#"<button class="wall" type="button" data-wall="wallpapers/{}" title="{}" aria-label="{}" style="background-image:url(wallpapers/{})"></button>"#, esc(&w.file), esc(&w.label), esc(&w.label), esc(&w.file))).collect::<Vec<_>>().join(""),
+        walls = v.wallpapers.iter().map(|w| format!(r#"<button class="wall" type="button" data-wall="wallpapers/{}" title="{}" aria-label="{}" style="background-image:url(wallpapers/{})"></button>"#, esc(&w.file), esc(&w.label), esc(&w.label), esc(&w.file))).collect::<String>(),
         walls_json = serde_json::json!(v.wallpapers.iter().map(|w| serde_json::json!({ "file": format!("wallpapers/{}", w.file), "name": w.label, "by": w.author, "byUrl": w.authorUrl })).collect::<Vec<_>>()).to_string().replace("</", "<\\/"),
         view_json = view_json().to_string().replace("</", "<\\/"),
     );
@@ -224,7 +166,7 @@ fn openapi() -> String {
 
 /// Every file of the shell with its SHA-256, lexically ordered. Not in the closure: the worker and
 /// its template, this list, `provenance.json` (the closure digest is one of its fields; the worker
-/// precaches it beside this list), Dyad's renderer build under `app/` and the staged `scaffold/` and
+/// precaches it beside this list), Dyad's renderer build under `assets/` and the staged `scaffold/` and
 /// `404.html` (written after the lane by the Pages workflow and content hashed by Vite already), and
 /// model weights, which live in the device store the engine keeps.
 fn manifest(shell: &Path) -> String {
@@ -235,7 +177,7 @@ fn manifest(shell: &Path) -> String {
             let path = entry.path();
             if path.is_dir() {
                 let name = path.file_name().unwrap().to_string_lossy().to_string();
-                if path.parent() == Some(root) && (name == "app" || name == "scaffold") {
+                if path.parent() == Some(root) && (name == "app" || name == "assets" || name == "scaffold") {
                     continue;
                 }
                 walk(&path, root, out);

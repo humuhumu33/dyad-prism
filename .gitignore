@@ -5,6 +5,8 @@ core/target/
 __pycache__/
 shell/core.wasm
 shell/app/
+shell/assets/
+vendor/dyad/dist/
 vendor/dyad/node_modules/
 shell/scaffold/
 shell/404.html

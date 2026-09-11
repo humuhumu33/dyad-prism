@@ -1,25 +1,27 @@
-"""Stamp the built renderer so it runs in a plain browser, and stage the scaffold beside the shell.
+"""Place Dyad's built renderer beside the shell, and stage the scaffold beside it.
 
-The viewport meta: Dyad's index.html has none, so phones lay out at 980 px. The host: loaded before
-the renderer's module script, so window.electron exists when the contracts read it. The 404 page:
-Pages serves 404.html for any unknown path, and a copy of the app's page lets Dyad's router read the
-URL after a refresh. The scaffold: Dyad's template with a file list, which the host creates apps from.
-Run after `vite build --base <base>` wrote shell/app/index.html: python3 scripts/stamp_shell.py <base>
+The homepage is shell/index.html, projected by the core from the verified View; it references the
+renderer's assets by fixed names (vendor/dyad/vite.shell.config.mts, ours). This script copies the Vite output
+under shell/assets/, writes shell/404.html as a copy of the homepage so Pages answers a refresh on any
+of Dyad's routes with the app (the router reads the URL), and stages Dyad's scaffold with a file list,
+which the host creates apps from. Run after the Vite build: python3 scripts/stamp_shell.py
 """
-import json, pathlib, shutil, sys
+import json, pathlib, shutil
 
 root = pathlib.Path(__file__).resolve().parent.parent
-base = sys.argv[1] if len(sys.argv) > 1 else "/app/"          # Vite's --base for this build
-host_src = base.rsplit("/", 2)[0] + "/host.js"                  # the shell directory above app/
-index = root / "shell" / "app" / "index.html"
-html = index.read_text(encoding="utf-8")
-if 'name="viewport"' not in html:
-    html = html.replace('<meta charset="UTF-8" />', '<meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />', 1)
-if "host.js" not in html:
-    html = html.replace('<script type="module"', f'<script type="module" src="{host_src}"></script>\n    <script type="module"', 1)
-index.write_text(html, encoding="utf-8", newline="\n")
-(root / "shell" / "404.html").write_text(html, encoding="utf-8", newline="\n")
-print(f"stamped {index} (base {base}, host {host_src}) and shell/404.html")
+dist = root / "vendor" / "dyad" / "dist" / "assets"
+assets = root / "shell" / "assets"
+if not dist.is_dir():
+    raise SystemExit(f"{dist} is missing: run the Vite build first (see vendor/dyad/vite.shell.config.mts)")
+if assets.exists():
+    shutil.rmtree(assets)
+shutil.copytree(dist, assets)
+for stale in ("app",):
+    if (root / "shell" / stale).exists():
+        shutil.rmtree(root / "shell" / stale)
+index = (root / "shell" / "index.html").read_text(encoding="utf-8")
+(root / "shell" / "404.html").write_text(index, encoding="utf-8", newline="\n")
+print(f"placed {sum(1 for p in assets.rglob('*') if p.is_file())} renderer files under shell/assets and wrote shell/404.html")
 
 src = root / "vendor" / "dyad" / "scaffold"
 dst = root / "shell" / "scaffold"
