@@ -16,3 +16,4 @@ Changes to reused files are listed here, one line each, so upstream can be track
   `main/ipc/handlers/local_agent/tool_definitions.ts` (the tool name type; the names are the PrismPM tool contract's),
   `main/prompts/turbo_edits_v2_prompt.ts` (empty; turbo edits are a Pro feature and not offered).
 - `scaffold/src/App.tsx`, as staged for the shell only (the vendored file is untouched): `<BrowserRouter basename={import.meta.env.BASE_URL}>`, so a project routes correctly when served under its address path instead of an origin root.
+- `src/router.ts`: `basepath: import.meta.env.BASE_URL.replace(/\/$/, "")` on `createRouter`, so Dyad's routes live under the base the shell is served from (`/app/` locally, `/dyad-prism/app/` on Pages) and a refresh finds them.

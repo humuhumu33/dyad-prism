@@ -7,3 +7,4 @@ shell/core.wasm
 shell/app/
 vendor/dyad/node_modules/
 shell/scaffold/
+shell/404.html

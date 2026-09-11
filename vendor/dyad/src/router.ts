@@ -51,6 +51,8 @@ export function NotFoundRedirect() {
 
 export const router = createRouter({
   routeTree,
+  // dyad-prism: the renderer is served under a base path (Vite's base), not at an origin root.
+  basepath: import.meta.env.BASE_URL.replace(/\/$/, ""),
   defaultNotFoundComponent: NotFoundRedirect,
   defaultErrorComponent: ErrorBoundary,
 });
