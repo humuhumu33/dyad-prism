@@ -166,7 +166,8 @@ fn openapi() -> String {
 
 /// Every file of the shell with its SHA-256, lexically ordered. Not in the closure: the worker and
 /// its template, this list, `provenance.json` (the closure digest is one of its fields; the worker
-/// precaches it beside this list), Dyad's renderer build under `assets/` and the staged `scaffold/` and
+/// precaches it beside this list), `warmup.json` (the site's included key, written at deploy time,
+/// never hashed into the closure), Dyad's renderer build under `assets/` and the staged `scaffold/` and
 /// `404.html` (written after the lane by the Pages workflow and content hashed by Vite already), and
 /// model weights, which live in the device store the engine keeps.
 fn manifest(shell: &Path) -> String {
@@ -191,7 +192,7 @@ fn manifest(shell: &Path) -> String {
     let mut rows = Vec::new();
     for rel in files {
         let name = rel.to_string_lossy().replace('\\', "/");
-        if name == "manifest.json" || name == "provenance.json" || name == "sw.js" || name == "sw.template.js" || name == "404.html" {
+        if name == "manifest.json" || name == "provenance.json" || name == "warmup.json" || name == "sw.js" || name == "sw.template.js" || name == "404.html" {
             continue;
         }
         let bytes = std::fs::read(shell.join(&rel)).expect("read shell file");

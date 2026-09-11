@@ -32,6 +32,7 @@ A gate is trusted only after a planted defect has been seen to trip it and a res
 - `publish_refused_without_attestation`: `publishDecision c c none = Refuse` (a match on the option; the Accept row and the drift row are string comparisons, pinned by `model/publish.json`).
 - `holo_path_shape`: `holoPath "k"` unfolds to `"/holo/" ++ "k" ++ "/"`.
 - `publish_preimage_shape`: the model document of a published application unfolds to its literal shape.
+- `warmup_notReadyKeyOnline`, `warmup_ready`, `warmup_noKey`, `warmup_offline`: while the local model is not resident, a held key online is answered by OpenRouter; resident, no key, or offline, it is not.
 
 String equality is not kernel reducible in Lean 4.32, so equality of concrete strings is never a theorem here; the corpus pins those bytes.
 

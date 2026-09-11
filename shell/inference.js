@@ -85,7 +85,16 @@ async function byPrompt(promptKappa) {
 // ---- settings: Dyad's own record, one place for the key and the chosen model
 export async function settingsGet() { const d = await db(); return new Promise((res, rej) => { const r = d.transaction("settings").objectStore("settings").get("user"); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); }); }
 export async function settingsPut(s) { const d = await db(); await new Promise((res, rej) => { const t = d.transaction("settings", "readwrite"); t.objectStore("settings").put(s, "user"); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
-export async function keyGet() { const s = await settingsGet(); const v = s && s.providerSettings && s.providerSettings.openrouter && s.providerSettings.openrouter.apiKey && s.providerSettings.openrouter.apiKey.value; return v ? String(v) : ""; }
+export async function deviceKeyGet() { const s = await settingsGet(); const v = s && s.providerSettings && s.providerSettings.openrouter && s.providerSettings.openrouter.apiKey && s.providerSettings.openrouter.apiKey.value; return v ? String(v) : ""; }
+// The site may include a key of its own (warmup.json, written at deploy time from a repository secret,
+// never in the tree): it counts as a key for the route and warm up rules and answers every visitor
+// while their local model loads; the visitor's own key wins over it.
+export const site = { key: "", model: "", ready: null };
+export function siteKeyReady() {
+  if (!site.ready) site.ready = fetch(new URL("warmup.json", BASE), { cache: "no-store" }).then(async (r) => { if (r.ok) { const j = await r.json(); site.key = String(j.key || ""); site.model = String(j.model || ""); } }).catch(() => {}).then(() => site.key);
+  return site.ready;
+}
+export async function keyGet() { return (await deviceKeyGet()) || (await siteKeyReady()); }
 export async function keySet(value) { const s = (await settingsGet()) || {}; s.providerSettings = { ...(s.providerSettings || {}), openrouter: { ...((s.providerSettings || {}).openrouter || {}), apiKey: { value } } }; await settingsPut(s); }
 // Who answers: local (the Q engine) or paid (an OpenRouter model). Read from and written to the same
 // selectedModel Dyad's settings page and composer use.

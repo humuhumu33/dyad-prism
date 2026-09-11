@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COPY="${DYAD_LANE_COPY:-$HOME/dyad-prism-lane}"
 mkdir -p "$COPY"
 # A renderer build running beside the lane leaves files that vanish mid copy (rsync code 24); harmless.
-rsync -a --delete --exclude .git --exclude node_modules --exclude core/target --exclude shell/app --exclude shell/assets --exclude shell/scaffold --exclude .lexlean --exclude .prism --exclude '*.timestamp-*' "$ROOT/" "$COPY/" || [ "$?" = 24 ]
+rsync -a --delete --exclude .git --exclude node_modules --exclude core/target --exclude shell/app --exclude shell/assets --exclude shell/scaffold --exclude shell/warmup.json --exclude .lexlean --exclude .prism --exclude '*.timestamp-*' "$ROOT/" "$COPY/" || [ "$?" = 24 ]
 cd "$COPY"
 git init -q 2>/dev/null || true
 git add -A >/dev/null 2>&1 && git -c user.email=lane@local -c user.name=lane commit -q -m mirror --allow-empty >/dev/null 2>&1 || true

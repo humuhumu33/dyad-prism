@@ -34,6 +34,7 @@ Inference.streamText
 Inference.temperatureField
 Inference.temperatureText
 Inference.textOf
+Inference.warmup
 Object.admitPage
 Object.expertPage
 Object.fetchSource

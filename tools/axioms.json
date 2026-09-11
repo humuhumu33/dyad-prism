@@ -435,5 +435,10 @@
   "Classical.choice",
   "Quot.sound",
   "propext"
- ]
+ ],
+ "warmup": [],
+ "warmup_noKey": [],
+ "warmup_notReadyKeyOnline": [],
+ "warmup_offline": [],
+ "warmup_ready": []
 }

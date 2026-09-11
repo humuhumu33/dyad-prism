@@ -20,7 +20,7 @@
 
 use crate::holo::archive::{compose_application, validate_application, ApplicationArchiveInput, ArchiveProvenance};
 use crate::{
-    admitPage, holoPath, publishDecision, publishPreimage, sourceManifest, done, encodeCompletion, encodeDelta, encodeError, encodeFinal, encodeModels, encodeOpenRouterRequest, encodeRole, endpointReady, expertPage, fetchSource, firstTokenReady, headOf, loaderStart, networkDecision, objEntry, packRank, packed, pageAction, poolAdmit, prefetchOrder, preimages, previewPath, promote, restoreDecision, rootPreimage, route, snapshotPreimage, tablePage, view, Admission, Capabilities, Completion, Decision, Entry, Grant, Manifest, Message, Obj, PageAction, Priority, Project, Provider, Ref, Request, Route, Section, Shard, Source, Staging, Start, Tier,
+    admitPage, holoPath, publishDecision, publishPreimage, sourceManifest, warmup, done, encodeCompletion, encodeDelta, encodeError, encodeFinal, encodeModels, encodeOpenRouterRequest, encodeRole, endpointReady, expertPage, fetchSource, firstTokenReady, headOf, loaderStart, networkDecision, objEntry, packRank, packed, pageAction, poolAdmit, prefetchOrder, preimages, previewPath, promote, restoreDecision, rootPreimage, route, snapshotPreimage, tablePage, view, Admission, Capabilities, Completion, Decision, Entry, Grant, Manifest, Message, Obj, PageAction, Priority, Project, Provider, Ref, Request, Route, Section, Shard, Source, Staging, Start, Tier,
 };
 use serde_json::{json, Value};
 
@@ -268,6 +268,7 @@ fn run(input: &[u8]) -> Value {
         }
         "loader-start" => json!({ "start": match loaderStart(value["shellOnDevice"].as_bool().unwrap_or(false), value["snapshotOnDevice"].as_bool().unwrap_or(false)) { Start::Cold => "Cold", Start::Warm => "Warm", Start::Resume => "Resume" } }),
         // Who answers: the route table in the model, every row a theorem.
+        "warmup" => json!({ "warmup": warmup(value["localReady"].as_bool().unwrap_or(false), value["keyPresent"].as_bool().unwrap_or(false), value["online"].as_bool().unwrap_or(false)) }),
         "route" => {
             let provider = if value["provider"].as_str() == Some("paid") { Provider::Paid } else { Provider::Local };
             let r = route(
@@ -344,6 +345,8 @@ pub fn view_json() -> Value {
         "noCreditLabel": v.noCreditLabel,
         "providerBusyLabel": v.providerBusyLabel,
         "paidOfflineLabel": v.paidOfflineLabel,
+        "warmupLabel": v.warmupLabel,
+        "siteKeyLabel": v.siteKeyLabel,
         "paidModels": v.paidModels.iter().map(|m| json!({ "id": m.id, "label": m.label })).collect::<Vec<_>>(),
         "connectLabel": v.connectLabel,
         "connectedLabel": v.connectedLabel,

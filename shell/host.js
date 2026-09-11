@@ -9,7 +9,7 @@
 
 import { buildSystemPrompt } from "./prompts.js";
 import * as inference from "./inference.js";
-import { viewReady, lookup, routeOf, refusalWord, seal as sealAnswer, sealPaid, paidGenerate, gpuReady, gpuIds, rememberSession, withEngine, engine, readWho, MODEL_ID } from "./inference.js";
+import { viewReady, lookup, routeOf, refusalWord, seal as sealAnswer, sealPaid, paidGenerate, gpuReady, gpuIds, rememberSession, withEngine, engine, readWho, MODEL_ID, site, siteKeyReady, deviceKeyGet } from "./inference.js";
 import { install, installed, encodeView, b64, unb64, sha256 } from "./holo.js";
 
 const MARKER = "dyad-ipc-envelope-v1";
@@ -50,7 +50,10 @@ const DEFAULT_SETTINGS = {
 // defaults fill what is missing, the record keeps what it has.
 handlers.set("get-user-settings", async () => ({ ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}) }));
 handlers.set("set-user-settings", async (patch) => { const s = { ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}), ...(patch || {}) }; await put("settings", "user", s); return s; });
-handlers.set("get-env-vars", () => ({}));
+// What the renderer takes as "set up": the site's included key counts as OpenRouter's, the device's
+// GPU counts as the local provider's, so no connect dialog stands between the first prompt and the
+// answer. The values are words, never the key itself.
+handlers.set("get-env-vars", async () => { await siteKeyReady(); const env = {}; if (site.key) env.OPENROUTER_API_KEY = "included by this site"; if (navigator.gpu) env.HOLOGRAM_DEVICE = "webgpu"; return env; });
 handlers.set("get-system-platform", () => "web");
 handlers.set("get-app-version", () => ({ version: "1.15.0-web" }));
 handlers.set("native-theme:get-state", () => ({ shouldUseDarkColors: matchMedia("(prefers-color-scheme: dark)").matches }));
@@ -73,7 +76,9 @@ const OPENROUTER_MODELS = [
   { apiName: "qwen/qwen3.8-flash", displayName: "Qwen 3.8 Flash", contextWindow: 256000 },
   { apiName: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", contextWindow: 256000 },
 ];
-const LOCAL = { id: "local", name: "On your device", type: "local", hasFreeTier: true };
+// The device is a provider Dyad counts as set up (a custom provider whose "environment variable" is
+// the GPU), so a machine with WebGPU needs no key before its first prompt.
+const LOCAL = { id: "local", name: "On your device", type: "custom", hasFreeTier: true, envVarName: "HOLOGRAM_DEVICE" };
 const LOCAL_MODELS = [{ apiName: MODEL_ID, displayName: "BitNet 2B, on your device", description: "Runs on this browser's GPU; every answer is sealed on the device", contextWindow: 4096 }];
 handlers.set("get-language-model-providers", () => [LOCAL, OPENROUTER]);
 handlers.set("get-language-models", ({ providerId }) => (providerId === "openrouter" ? OPENROUTER_MODELS : providerId === "local" ? LOCAL_MODELS : []));
@@ -454,9 +459,22 @@ async function chatTurn(chatId, intent) {
       lastSent = full;
       if (Date.now() - lastSave > 150) { messages[messages.length - 1].content = full; await saveMessages(chatId, messages); lastSave = Date.now(); }
     };
+    // Warm up: the local model is chosen but not resident yet; a held key (the visitor's, or the
+    // site's) answers through OpenRouter meanwhile, and the local model starts loading for the next turn.
+    const warm = route === "Local" && !engine.instance && core.run({ op: "warmup", localReady: !!engine.instance, keyPresent: !!(await inference.keyGet()), online: navigator.onLine }).warmup;
+    if (warm && navigator.gpu) gpuReady().catch(() => {});
     if (route === "Serve") {
       await onText(hit.text);
       provenance = { receipt: hit.receipt, served: true, fingerprint: hit.fingerprint };
+    } else if (warm) {
+      const warmBody = { ...body, model: "openrouter/" + (site.model || V.paidModels[0].id) };
+      const warmHit = await lookup(warmBody);
+      if (warmHit.hit) { await onText(warmHit.text); provenance = { receipt: warmHit.receipt, served: true, fingerprint: warmHit.fingerprint, warm: true }; }
+      else {
+        const { text, rec } = await paidGenerate(warmBody, (t) => { onText(t); }, abort.signal);
+        await onText(text);
+        provenance = { receipt: await sealPaid(warmBody, rec, warmHit.key), fingerprint: `${rec.model};${rec.provider || ""}`, cost: rec.cost, warm: true };
+      }
     } else if (route === "Paid") {
       const { text, rec } = await paidGenerate(body, (t) => { onText(t); }, abort.signal);
       await onText(text);
@@ -490,7 +508,7 @@ async function chatTurn(chatId, intent) {
   }
   m.abort = null;
   const outcome = abort.signal.aborted ? "cancelled" : error ? "errored" : "completed";
-  const completion = { intentId: intent.intentId, invocationRef: ref, outcome, updatedFiles, suppressAutoReview: true, targetAppId: appId, ...(summary ? { chatSummary: summary } : {}), ...(error ? { error } : {}), ...(provenance && provenance.receipt ? { warningMessages: [(provenance.served ? V.servedLabel : V.sealedLabel) + " · " + provenance.receipt.replace(/^blake3:/, "").slice(0, 12) + "…"] } : {}) };
+  const completion = { intentId: intent.intentId, invocationRef: ref, outcome, updatedFiles, suppressAutoReview: true, targetAppId: appId, ...(summary ? { chatSummary: summary } : {}), ...(error ? { error } : {}), ...(provenance && provenance.receipt ? { warningMessages: [(provenance.warm ? V.warmupLabel + " · " : "") + (provenance.served ? V.servedLabel : V.sealedLabel) + " · " + provenance.receipt.replace(/^blake3:/, "").slice(0, 12) + "…"] } : {}) };
   publishChat(chatId, { phase: "finalizing", error, lastCompletion: completion });
   publishChat(chatId, { phase: outcome === "errored" ? "errored" : "idle", invocationRef: null, queuePaused: false, queuePauseReason: null });
   emit("chat:stream:end", { chatId });
