@@ -7,6 +7,8 @@
 // the preview worker, and the app run machine (build in the tab, serve at the version's address).
 // The chat stream is the next slice.
 
+import { buildSystemPrompt } from "./prompts.js";
+
 const MARKER = "dyad-ipc-envelope-v1";
 const BASE = new URL("./", import.meta.url); // the shell's directory, wherever it is served
 const ok = (value) => ({ __dyadIpcEnvelope: MARKER, ok: true, value });
@@ -88,8 +90,23 @@ handlers.set("get-user-budget", () => null);
 handlers.set("get-subscription-status", () => null);
 handlers.set("get-custom-apps-folder", () => ({ path: null, isCustom: false }));
 handlers.set("get-node-path", () => null);
-handlers.set("get-language-model-providers", () => []);
-handlers.set("get-language-models-by-providers", () => ({}));
+const OPENROUTER = { id: "openrouter", name: "OpenRouter", hasFreeTier: true, websiteUrl: "https://openrouter.ai/settings/keys", gatewayPrefix: "openrouter/", type: "cloud" };
+const OPENROUTER_MODELS = [
+  { apiName: "openrouter/free", displayName: "Free router", description: "Whatever free model OpenRouter routes to", contextWindow: 128000 },
+  { apiName: "moonshotai/kimi-k2.5", displayName: "Kimi K2.5", contextWindow: 256000 },
+  { apiName: "minimax/minimax-m2.7", displayName: "MiniMax M2.7", contextWindow: 200000 },
+  { apiName: "qwen/qwen3.8-flash", displayName: "Qwen 3.8 Flash", contextWindow: 256000 },
+  { apiName: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", contextWindow: 256000 },
+];
+handlers.set("get-language-model-providers", () => [OPENROUTER]);
+handlers.set("get-language-models", ({ providerId }) => (providerId === "openrouter" ? OPENROUTER_MODELS : []));
+handlers.set("get-language-models-by-providers", () => ({ openrouter: OPENROUTER_MODELS }));
+handlers.set("validate-provider-api-key", async ({ provider, apiKey }) => {
+  if (provider !== "openrouter") return { ok: true };
+  const r = await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { authorization: "Bearer " + apiKey } });
+  if (!r.ok) throw new Error("OpenRouter did not accept this key (" + r.status + ")");
+  return { ok: true };
+});
 handlers.set("prompts:list", () => []);
 handlers.set("list-all-media", () => ({ apps: [] }));
 handlers.set("free-agent-quota:get-status", () => ({ messagesUsed: 0, messagesLimit: 5, isQuotaExceeded: false, windowStartTime: null, resetTime: null }));
@@ -135,7 +152,7 @@ async function loadScaffold() {
   if (scaffold) return scaffold;
   const list = await (await fetch(new URL("scaffold/files.json", BASE))).json();
   const files = {};
-  await Promise.all(list.map(async (p) => { files[p] = await (await fetch(new URL("scaffold/" + p, BASE))).text(); }));
+  await Promise.all(list.concat(["AI_RULES.md"]).map(async (p) => { const r = await fetch(new URL("scaffold/" + p, BASE)); if (r.ok) files[p] = await r.text(); }));
   return (scaffold = files);
 }
 handlers.set("list-apps", async () => ({ apps: (await all("apps")).map(withDates) }));
@@ -191,7 +208,7 @@ handlers.set("revert-version", async ({ appId, previousVersionId }) => { await r
 
 // ---- chats as records; the stream is the next slice
 handlers.set("get-chats", async (appId) => (await all("chats")).filter((c) => appId == null || c.appId === appId).map((c) => ({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()) })));
-handlers.set("get-chat", async (id) => { const c = await get("chats", id); if (!c) throw new Error("no chat " + id); return c; });
+handlers.set("get-chat", async (id) => { const c = await get("chats", id); if (!c) throw new Error("no chat " + id); return { ...c, chatMode: c.chatMode || "build", referencedApps: c.referencedApps || [], messages: (c.messages || []).map((x) => ({ ...x, createdAt: x.createdAt || now() })) }; });
 handlers.set("get-chat-metadata", async (id) => { const c = await get("chats", id); return c ? { id: c.id, appId: c.appId, title: c.title } : null; });
 handlers.set("create-chat", async (appId) => { const id = await nextId("chats"); await put("chats", id, { id, appId, title: "New chat", messages: [], initialCommitHash: null, dbTimestamp: null, chatMode: "build", modelSelection: null, referencedApps: [] }); return id; });
 handlers.set("update-chat", async ({ chatId, title }) => { const c = await get("chats", chatId); if (c && title) c.title = title; if (c) await put("chats", chatId, c); });
@@ -232,9 +249,12 @@ async function buildPreview(appId) {
   for (const p of await filesOf(appId)) files.set(p, await get("files", appId + ":" + p));
   const pkg = await (await fetch(new URL("scaffold/package.json", BASE))).json();
   const pkgs = Object.fromEntries(Object.entries(pkg.dependencies).map(([n, v]) => [n, v.replace(/^[\^~]/, "")]));
+  // Packages the model added with <dyad-add-dependency>: name or name@version, resolved by esm.sh.
+  const app = await get("apps", appId);
+  for (const d of app.extraDeps || []) { const at = d.lastIndexOf("@"); if (at > 0) pkgs[d.slice(0, at)] = d.slice(at + 1); else pkgs[d] = ""; }
   const react = pkgs.react, dom = pkgs["react-dom"];
   const imports = { react: `https://esm.sh/react@${react}`, "react/": `https://esm.sh/react@${react}/`, "react-dom": `https://esm.sh/react-dom@${dom}?external=react`, "react-dom/": `https://esm.sh/react-dom@${dom}&external=react/` };
-  for (const [n, v] of Object.entries(pkgs)) { if (n === "react" || n === "react-dom") continue; imports[n] = `https://esm.sh/${n}@${v}?external=react,react-dom`; imports[n + "/"] = `https://esm.sh/${n}@${v}&external=react,react-dom/`; }
+  for (const [n, v] of Object.entries(pkgs)) { if (n === "react" || n === "react-dom") continue; const at = v ? "@" + v : ""; imports[n] = `https://esm.sh/${n}${at}?external=react,react-dom`; imports[n + "/"] = `https://esm.sh/${n}${at}&external=react,react-dom/`; }
   const tw = await (await fetch(new URL("scaffold/tailwind.config.ts", BASE))).text();
   const m = tw.match(/theme:\s*(\{[\s\S]*\n  \}),\n  plugins/);
   const tailwindConfig = m ? "{darkMode:['class'],theme:" + m[1] + "}" : "{}";
@@ -274,12 +294,15 @@ async function buildPreview(appId) {
   return { appUrl: appUrl.href, bytes: js.length };
 }
 handlers.set("distributed-machine:subscribe", async ({ machineId, encodedKey }) => {
+  if (machineId === "chat_stream") return chatSubscribe({ machineId, encodedKey });
   if (machineId !== "app_run") throw new Error("no browser machine " + machineId);
   const m = machineOf(encodedKey.appId);
   return { protocolVersion: 1, machineId, encodedKey, actorInstanceId: "web-app_run-" + encodedKey.appId, revision: m.revision, encodedState: m.state };
 });
 handlers.set("distributed-machine:unsubscribe", () => undefined);
-handlers.set("distributed-machine:dispatch", async ({ machineId, encodedKey, messageId, encodedEvent }) => {
+handlers.set("distributed-machine:dispatch", async (envelope) => {
+  const { machineId, encodedKey, messageId, encodedEvent } = envelope;
+  if (machineId === "chat_stream") return chatDispatch(envelope);
   if (machineId !== "app_run") throw new Error("no browser machine " + machineId);
   const appId = encodedKey.appId, type = encodedEvent && encodedEvent.type;
   const receipt = (m) => ({ kind: "applied", actorInstanceId: "web-app_run-" + appId, revision: m.revision, transactionSequence: m.revision, messageId });
@@ -314,6 +337,187 @@ handlers.set("git:get-uncommitted-files", () => []);
 handlers.set("reload-env-path", () => undefined);
 handlers.set("get-cloud-sandbox-status", () => null);
 window.__preview = buildPreview;
+
+// ---- the model: OpenRouter with the visitor's own key, streamed as OpenAI compatible SSE. The key
+// lives in the settings record as Dyad keeps it (providerSettings.openrouter.apiKey.value).
+async function* streamOpenRouter({ key, model, messages, signal }) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST", signal,
+    headers: { "content-type": "application/json", authorization: "Bearer " + key, "HTTP-Referer": location.origin, "X-Title": "dyad-prism" },
+    body: JSON.stringify({ model, messages, stream: true }),
+  });
+  if (!res.ok) throw new Error("OpenRouter " + res.status + ": " + (await res.text()).slice(0, 200));
+  const reader = res.body.getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") return;
+      try { const j = JSON.parse(data); const d = j.choices && j.choices[0] && j.choices[0].delta; if (d && d.content) yield d.content; if (j.error) throw new Error(j.error.message || "model error"); } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
+    }
+  }
+}
+
+// ---- Dyad's tags: what the model writes becomes files. The grammar is the renderer's: a block per
+// file, attributes path and description, content verbatim between the tags; delete and rename are
+// single tags; add-dependency names packages the import map must carry.
+function parseDyadTags(text) {
+  const writes = [], deletes = [], renames = [], deps = [];
+  const attr = (s, name) => { const m = s.match(new RegExp(name + '="([^"]*)"')); return m ? m[1] : null; };
+  for (const m of text.matchAll(/<dyad-write\s+([^>]*)>([\s\S]*?)<\/dyad-write>/g)) {
+    let content = m[2]; if (content.startsWith("\n")) content = content.slice(1); if (content.endsWith("\n")) content = content.slice(0, -1);
+    const fence = content.match(/^```[\w-]*\n([\s\S]*?)\n```\s*$/); if (fence) content = fence[1];
+    writes.push({ path: attr(m[1], "path"), description: attr(m[1], "description"), content });
+  }
+  for (const m of text.matchAll(/<dyad-delete\s+([^>]*?)\s*\/?>/g)) deletes.push({ path: attr(m[1], "path") });
+  for (const m of text.matchAll(/<dyad-rename\s+([^>]*?)\s*\/?>/g)) renames.push({ from: attr(m[1], "from"), to: attr(m[1], "to") });
+  for (const m of text.matchAll(/<dyad-add-dependency\s+([^>]*?)\s*\/?>/g)) { const p = attr(m[1], "packages") || attr(m[1], "package"); if (p) deps.push(...p.split(/\s+/).filter(Boolean)); }
+  return { writes, deletes, renames, deps };
+}
+async function applyDyadTags(appId, tags) {
+  let changed = 0;
+  for (const w of tags.writes) if (w.path) { await put("objects", await kappa(enc.encode(w.content)), enc.encode(w.content)); await put("files", appId + ":" + w.path, w.content); changed++; }
+  for (const d of tags.deletes) if (d.path) { await del("files", appId + ":" + d.path); changed++; }
+  for (const r of tags.renames) if (r.from && r.to) { const c = await get("files", appId + ":" + r.from); if (c !== undefined) { await del("files", appId + ":" + r.from); await put("files", appId + ":" + r.to, c); changed++; } }
+  if (tags.deps.length) { const app = await get("apps", appId); app.extraDeps = [...new Set([...(app.extraDeps || []), ...tags.deps])]; await put("apps", appId, app); }
+  return changed;
+}
+window.__chat = { streamOpenRouter, parseDyadTags, applyDyadTags };
+
+// ---- the chat stream machine. Dyad's renderer submits a turn only here: SUBMIT on the chat_stream
+// machine, then it watches the snapshot (admitting, streaming, finalizing, idle) and applies the
+// chunk events to the message it renders. The model is OpenRouter with the visitor's own key; the
+// prompt is Dyad's text tag build prompt, so the answer carries <dyad-write> blocks the host applies
+// to the project, seals as a version, and the renderer then reloads the preview by itself.
+const chatMachines = new Map(); // chatId -> { revision, state, abort }
+const idleChat = (chatId) => ({ schemaVersion: 1, chatId, revision: 0, phase: "idle", invocationRef: null, error: null, queueRevision: 0, queuePaused: false, queuePauseReason: null, queue: [], stopPolicyVersion: 0, capabilities: { canSubmit: true, canCancel: false, canPauseQueue: true, canResumeQueue: false }, lastAcceptance: null, lastCompletion: null, lastQueueMutation: null });
+function chatMachineOf(chatId) { if (!chatMachines.has(chatId)) chatMachines.set(chatId, { revision: 0, state: idleChat(chatId), abort: null }); return chatMachines.get(chatId); }
+function publishChat(chatId, patch) {
+  const m = chatMachineOf(chatId);
+  m.revision += 1;
+  const phase = patch.phase || m.state.phase;
+  const queuePaused = patch.queuePaused === undefined ? m.state.queuePaused : patch.queuePaused;
+  m.state = { ...m.state, ...patch, revision: m.revision, capabilities: { canSubmit: true, canCancel: phase === "admitting" || phase === "streaming", canPauseQueue: !queuePaused, canResumeQueue: queuePaused } };
+  emit("distributed-machine:snapshot", { protocolVersion: 1, machineId: "chat_stream", encodedKey: { chatId }, actorInstanceId: "web-chat_stream-" + chatId, revision: m.revision, encodedState: m.state });
+  return m;
+}
+const djb2 = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = (((h << 5) + h) ^ str.charCodeAt(i)) >>> 0; return h; };
+const now = () => new Date().toISOString();
+async function messagesOf(chatId) { const c = await get("chats", chatId); return c ? c.messages : []; }
+async function saveMessages(chatId, messages) { const c = await get("chats", chatId); c.messages = messages; await put("chats", chatId, c); }
+// What the model is shown of the project: every path, and the source of the files a visitor's app
+// is made of; the shadcn ui library files are named, not pasted, since the model knows them.
+async function codebaseOf(appId) {
+  const paths = await filesOf(appId);
+  const parts = [];
+  for (const p of paths) {
+    if (p.startsWith("src/components/ui/")) continue;
+    const c = await get("files", appId + ":" + p);
+    parts.push(`<dyad-file path="${p}">\n${c}\n</dyad-file>`);
+  }
+  return "Files in the project:\n" + paths.join("\n") + "\n\n" + parts.join("\n\n");
+}
+async function chatTurn(chatId, intent) {
+  const m = chatMachineOf(chatId);
+  const chat = await get("chats", chatId);
+  const appId = chat.appId;
+  const ref = intent.invocationRef;
+  const settings = (await get("settings", "user")) || DEFAULT_SETTINGS;
+  const key = settings.providerSettings && settings.providerSettings.openrouter && settings.providerSettings.openrouter.apiKey && settings.providerSettings.openrouter.apiKey.value;
+  const model = (chat.modelSelection && chat.modelSelection.provider === "openrouter" && chat.modelSelection.name) || (settings.selectedModel && settings.selectedModel.provider === "openrouter" && settings.selectedModel.name) || "openrouter/free";
+  // T2: the user message, accepted
+  const messages = await messagesOf(chatId);
+  const userId = messages.length ? Math.max(...messages.map((x) => x.id)) + 1 : 1;
+  messages.push({ id: userId, role: "user", content: intent.prompt, approvalState: null, commitHash: null, createdAt: now() });
+  await saveMessages(chatId, messages);
+  publishChat(chatId, { phase: "streaming", lastAcceptance: { intentId: intent.intentId, acceptance: "message-accepted", acceptedMessageId: userId } });
+  emit("chat:stream:start", { chatId, invocationRef: ref });
+  // T3: the assistant placeholder
+  const head = (await get("refs", appId + ":main")) || null;
+  const asstId = userId + 1;
+  messages.push({ id: asstId, role: "assistant", content: "", approvalState: "approved", commitHash: null, sourceCommitHash: head, model, createdAt: now() });
+  await saveMessages(chatId, messages);
+  emit("chat:response:chunk", { chatId, invocationRef: ref, messages });
+  let full = "", lastSent = "", updatedFiles = false, summary, error = null;
+  const abort = new AbortController(); m.abort = abort;
+  try {
+    if (!key) throw new Error("No OpenRouter key. Add your own key under Settings, it stays in this browser.");
+    const app = await get("apps", appId);
+    const rules = await get("files", appId + ":AI_RULES.md");
+    const history = messages.slice(0, -2).filter((x) => x.content).map((x) => ({ role: x.role, content: x.content }));
+    const request = [
+      { role: "system", content: buildSystemPrompt(rules) },
+      { role: "user", content: "This is my codebase. " + (await codebaseOf(appId)) },
+      { role: "assistant", content: "OK, got it. I'm ready to help" },
+      ...history,
+      { role: "user", content: intent.prompt },
+    ];
+    let lastSave = 0;
+    for await (const delta of streamOpenRouter({ key, model, messages: request, signal: abort.signal })) {
+      full += delta;
+      let lcp = 0; while (lcp < lastSent.length && lcp < full.length && lastSent[lcp] === full[lcp]) lcp++;
+      if (lcp < lastSent.length) { messages[messages.length - 1].content = full; emit("chat:response:chunk", { chatId, invocationRef: ref, messages }); }
+      else emit("chat:response:chunk", { chatId, invocationRef: ref, streamingMessageId: asstId, streamingPatch: { offset: lcp, content: full.slice(lcp), ...(lcp > 0 ? { prefixHash: djb2(full.slice(0, lcp)) } : {}) } });
+      lastSent = full;
+      if (Date.now() - lastSave > 150) { messages[messages.length - 1].content = full; await saveMessages(chatId, messages); lastSave = Date.now(); }
+    }
+    // T6: what the model wrote becomes the project, sealed as a version
+    const sm = full.match(/<dyad-chat-summary>([\s\S]*?)<\/dyad-chat-summary>/); summary = sm ? sm[1].trim() : undefined;
+    if (summary && (!chat.title || chat.title === "New chat")) { const c = await get("chats", chatId); c.title = summary; await put("chats", chatId, c); }
+    const tags = parseDyadTags(full);
+    const changed = await applyDyadTags(appId, tags);
+    updatedFiles = changed > 0;
+    let commit = null;
+    if (updatedFiles) commit = await seal(appId, summary || `${changed} file(s) changed`);
+    messages[messages.length - 1] = { ...messages[messages.length - 1], content: full, commitHash: commit, approvalState: "approved" };
+    await saveMessages(chatId, messages);
+    emit("chat:response:chunk", { chatId, invocationRef: ref, messages });
+  } catch (e) {
+    error = abort.signal.aborted ? null : String((e && e.message) || e);
+    messages[messages.length - 1] = { ...messages[messages.length - 1], content: full + (abort.signal.aborted ? "\n\n<dyad-output type=\"warning\" message=\"Response cancelled by user\"></dyad-output>" : error ? `\n\n<dyad-output type="error" message="${error.replace(/"/g, "'")}"></dyad-output>` : "") };
+    await saveMessages(chatId, messages);
+    emit("chat:response:chunk", { chatId, invocationRef: ref, messages });
+  }
+  m.abort = null;
+  const outcome = abort.signal.aborted ? "cancelled" : error ? "errored" : "completed";
+  const completion = { intentId: intent.intentId, invocationRef: ref, outcome, updatedFiles, suppressAutoReview: true, targetAppId: appId, ...(summary ? { chatSummary: summary } : {}), ...(error ? { error } : {}) };
+  publishChat(chatId, { phase: "finalizing", error, lastCompletion: completion });
+  publishChat(chatId, { phase: outcome === "errored" ? "errored" : "idle", invocationRef: null, queuePaused: false, queuePauseReason: null });
+  emit("chat:stream:end", { chatId });
+}
+const chatSubscribe = ({ machineId, encodedKey }) => { const m = chatMachineOf(encodedKey.chatId); return { protocolVersion: 1, machineId, encodedKey, actorInstanceId: "web-chat_stream-" + encodedKey.chatId, revision: m.revision, encodedState: m.state }; };
+function chatDispatch({ encodedKey, messageId, expectedActorInstanceId, encodedEvent }) {
+  const chatId = encodedKey.chatId, m = chatMachineOf(chatId), type = encodedEvent && encodedEvent.type;
+  const aid = "web-chat_stream-" + chatId;
+  if (expectedActorInstanceId && expectedActorInstanceId !== aid) return { kind: "rejected", messageId, reason: "stale-actor" };
+  const applied = () => ({ kind: "applied", actorInstanceId: aid, revision: m.revision, transactionSequence: m.revision, messageId });
+  if (type === "SUBMIT") {
+    const intent = encodedEvent.intent;
+    if (m.state.phase === "admitting" || m.state.phase === "streaming") return { kind: "ignored", actorInstanceId: aid, revision: m.revision, transactionSequence: m.revision, messageId, reason: "not-active" };
+    publishChat(chatId, { phase: "admitting", invocationRef: intent.invocationRef, error: null, queuePaused: false, queuePauseReason: null });
+    chatTurn(chatId, intent).catch((e) => { console.error("[host] chat turn", e); publishChat(chatId, { phase: "errored", invocationRef: null, error: String((e && e.message) || e) }); });
+    return applied();
+  }
+  if (type === "CANCEL") {
+    if (m.abort) m.abort.abort();
+    publishChat(chatId, { phase: m.abort ? "cancelling" : m.state.phase, stopPolicyVersion: m.state.stopPolicyVersion + 1 });
+    return applied();
+  }
+  if (type === "REPORT_ERROR") { publishChat(chatId, { error: encodedEvent.error }); return applied(); }
+  if (["PAUSE_QUEUE", "RESUME_QUEUE", "CLEAR_QUEUE", "EDIT_QUEUE_ENTRY", "REORDER_QUEUE_ENTRY", "REMOVE_QUEUE_ENTRY"].includes(type)) {
+    publishChat(chatId, { queuePaused: type === "PAUSE_QUEUE", queuePauseReason: type === "PAUSE_QUEUE" ? "manual" : null, queueRevision: m.state.queueRevision + 1, lastQueueMutation: { mutationId: encodedEvent.mutationId, outcome: "applied" } });
+    return applied();
+  }
+  return { kind: "ignored", actorInstanceId: aid, revision: m.revision, transactionSequence: m.revision, messageId, reason: "unknown intent " + type };
+}
+handlers.set("chat:observe-submission-stop-policy", (chatId) => chatMachineOf(chatId).state.stopPolicyVersion);
+handlers.set("chat:cancel", (chatId) => { const m = chatMachineOf(chatId); if (m.abort) m.abort.abort(); });
 
 // ---- the surface
 function dispatch(channel, args) {
