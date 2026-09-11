@@ -6,7 +6,7 @@ under shell/assets/, writes shell/404.html as a copy of the homepage so Pages an
 of Dyad's routes with the app (the router reads the URL), and stages Dyad's scaffold with a file list,
 which the host creates apps from. Run after the Vite build: python3 scripts/stamp_shell.py
 """
-import json, pathlib, shutil
+import json, pathlib, re, shutil
 
 root = pathlib.Path(__file__).resolve().parent.parent
 dist = root / "vendor" / "dyad" / "dist" / "assets"
@@ -31,6 +31,14 @@ shutil.copytree(src / "src", dst / "src")
 for name in ("package.json", "tailwind.config.ts", "index.html", "AI_RULES.md"):
     if (src / name).exists():
         shutil.copy(src / name, dst / name)
+# The product is Hologram: the staged scaffold's words say so (the badge, the link); the vendored tree is untouched.
+WORD = re.compile(r"\bDyad\b")
+for p in dst.rglob("*"):
+    if p.is_file() and p.suffix in (".tsx", ".ts", ".md", ".html", ".json"):
+        text = p.read_text(encoding="utf-8")
+        new = WORD.sub("Hologram", text).replace("https://www.dyad.sh/", "https://gethologram.ai/")
+        if new != text:
+            p.write_text(new, encoding="utf-8", newline="\n")
 app = dst / "src" / "App.tsx"
 app.write_text(app.read_text(encoding="utf-8").replace("<BrowserRouter>", "<BrowserRouter basename={import.meta.env.BASE_URL}>", 1), encoding="utf-8", newline="\n")
 files = sorted(str(p.relative_to(dst)).replace("\\", "/") for p in (dst / "src").rglob("*") if p.is_file())

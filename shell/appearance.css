@@ -15,16 +15,17 @@
   --holo-hover: rgba(255, 255, 255, 0.12);
 }
 
-/* The photo, fixed behind everything, with a quiet scrim; the panels above it go translucent. */
+/* The photo, fixed behind everything, unfaded: no scrim, and the main surface fully transparent; the
+   sidebar, cards and popovers keep a light glass so their text stays legible. */
 :root[data-holo-immersive="on"] body { background: transparent; }
 :root[data-holo-immersive="on"] body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.42)), var(--holo-wallpaper, none) center / cover no-repeat, #151312;
+  background: var(--holo-wallpaper, none) center / cover no-repeat, #151312;
 }
 :root[data-holo-immersive="on"].dark, :root[data-holo-immersive="on"] {
-  --background: oklch(0.145 0 0 / 0.42);
-  --sidebar: oklch(0.205 0 0 / 0.5);
-  --card: oklch(0.205 0 0 / 0.62);
+  --background: oklch(0.145 0 0 / 0);
+  --sidebar: oklch(0.205 0 0 / 0.42);
+  --card: oklch(0.205 0 0 / 0.55);
   --popover: oklch(0.205 0 0 / 0.9);
   --muted: oklch(0.269 0 0 / 0.55);
   --accent: oklch(0.269 0 0 / 0.6);
@@ -60,5 +61,7 @@
 .wall { aspect-ratio: 1.618; border-radius: 8px; border: 1.5px solid transparent; background-size: cover; background-position: center; cursor: pointer; }
 .wall[aria-pressed="true"] { border-color: var(--holo-brand); }
 
-/* Electron's window controls (minimize, maximize, close) mean nothing in a browser tab: hidden. */
-.app-region-drag > .ml-auto.no-app-region-drag.self-start { display: none; }
+/* Electron's title bar (the logo, "Manage app", the window controls) is window chrome, not the
+   product: hidden, and the layout's offset for it set to zero so the page starts at the top. */
+:root { --layout-title-bar-offset: 0px !important; }
+.app-region-drag { display: none !important; }
