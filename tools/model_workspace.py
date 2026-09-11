@@ -81,7 +81,10 @@ decls = [
     # written in HTML by hand. No hyphens in any string.
     structure("View", headline=STRING, lede=STRING, promptPlaceholder=STRING, sendLabel=STRING,
               buildingLabel=STRING, previewLabel=STRING, snapshotLabel=STRING, rollbackLabel=STRING,
-              refusedLabel=STRING, offlineLabel=STRING),
+              refusedLabel=STRING, offlineLabel=STRING,
+              publishLabel=STRING, publishingLabel=STRING, publishedLabel=STRING, publishRefusedLabel=STRING,
+              holoLabel=STRING, downloadLabel=STRING, openLabel=STRING, runsLabel=STRING,
+              holoTitle=STRING, holoLede=STRING, pickLabel=STRING, verifyingLabel=STRING),
 
     # ---- JSON escaping, split and join, backslash first
     esc_step("escapeBackslash", BS, BS + BS, var("value")),
@@ -147,7 +150,19 @@ decls = [
         snapshotLabel=s("Sealed"),
         rollbackLabel=s("Go back"),
         refusedLabel=s("Refused: not what it claims to be"),
-        offlineLabel=s("offline, working from your device"))),
+        offlineLabel=s("offline, working from your device"),
+        publishLabel=s("Publish as a Hologram application"),
+        publishingLabel=s("cooking your application through PrismPM"),
+        publishedLabel=s("Published"),
+        publishRefusedLabel=s("Refused: the evidence does not match this shell"),
+        holoLabel=s("Your .holo application"),
+        downloadLabel=s("Download"),
+        openLabel=s("Open"),
+        runsLabel=s("Runs on Hologram Desktop, Hologram Server and in any browser, with no server"),
+        holoTitle=s("Run a Hologram application"),
+        holoLede=s("The file is checked by PrismPM's own validator before it runs. Nothing leaves this browser."),
+        pickLabel=s("Choose a .holo file"),
+        verifyingLabel=s("verifying"))),
 
     # ---- theorems: the shape of the rules, by unfolding; bytes are pinned by the corpus
     theorem("view_headline", eq(project("headline", call("view")), s("Own Your Ideas"))),

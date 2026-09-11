@@ -149,6 +149,12 @@
   "Quot.sound",
   "propext"
  ],
+ "holoPath": [
+  "propext"
+ ],
+ "holo_path_shape": [
+  "propext"
+ ],
  "idOf": [
   "Classical.choice",
   "Quot.sound",
@@ -290,6 +296,16 @@
   "Quot.sound",
   "propext"
  ],
+ "publishPreimage": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "publish_preimage_shape": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
  "receiptOf": [
   "Classical.choice",
   "Quot.sound",
@@ -396,6 +412,11 @@
   "propext"
  ],
  "snapshotPreimage": [
+  "Classical.choice",
+  "Quot.sound",
+  "propext"
+ ],
+ "sourceManifest": [
   "Classical.choice",
   "Quot.sound",
   "propext"

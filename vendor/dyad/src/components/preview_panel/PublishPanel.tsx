@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GithubCollaboratorManager } from "@/components/GithubCollaboratorManager";
 import { DatabaseSection } from "@/components/preview_panel/DatabaseSection";
 import { DeploymentSection } from "@/components/preview_panel/DeploymentSection";
+import { HologramSection } from "@/components/preview_panel/HologramSection";
 
 export const PublishPanel = () => {
   const selectedAppId = useAtomValue(selectedAppIdAtom);
@@ -122,6 +123,7 @@ export const PublishPanel = () => {
           </CardContent>
         </Card>
 
+        <HologramSection appId={selectedAppId} />
         <DeploymentSection appId={selectedAppId} app={app} />
       </div>
     </div>

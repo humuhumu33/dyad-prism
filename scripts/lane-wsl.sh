@@ -8,7 +8,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COPY="${DYAD_LANE_COPY:-$HOME/dyad-prism-lane}"
 mkdir -p "$COPY"
-rsync -a --delete --exclude .git --exclude node_modules --exclude core/target --exclude shell/app --exclude shell/scaffold --exclude .lexlean --exclude .prism "$ROOT/" "$COPY/"
+# A renderer build running beside the lane leaves files that vanish mid copy (rsync code 24); harmless.
+rsync -a --delete --exclude .git --exclude node_modules --exclude core/target --exclude shell/app --exclude shell/scaffold --exclude .lexlean --exclude .prism --exclude '*.timestamp-*' "$ROOT/" "$COPY/" || [ "$?" = 24 ]
 cd "$COPY"
 git init -q 2>/dev/null || true
 git add -A >/dev/null 2>&1 && git -c user.email=lane@local -c user.name=lane commit -q -m mirror --allow-empty >/dev/null 2>&1 || true
@@ -19,7 +20,7 @@ rsync -a "$COPY/tools/axioms.json" "$ROOT/tools/axioms.json"
 rsync -a "$COPY/lexlean.lock" "$ROOT/lexlean.lock"
 rsync -a "$COPY/src/" "$ROOT/src/"
 rsync -a "$COPY/model/roots.txt" "$ROOT/model/roots.txt"
-for f in core.wasm index.html app.webmanifest manifest.json sw.js v1/openapi.json; do
+for f in core.wasm index.html holo.html app.webmanifest manifest.json provenance.json sw.js v1/openapi.json; do
   [ -f "$COPY/shell/$f" ] && mkdir -p "$(dirname "$ROOT/shell/$f")" && cp "$COPY/shell/$f" "$ROOT/shell/$f"
 done
 echo "lane (linux copy): done; artifacts synced to $ROOT"

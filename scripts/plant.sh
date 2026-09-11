@@ -5,13 +5,16 @@
 #   ./scripts/plant.sh bytes     # change the corpus's expected preimage: the corpus test must refuse
 #   ./scripts/plant.sh shell     # edit a word in shell/index.html by hand: the lane's compare must refuse
 #   ./scripts/plant.sh grant     # make admits accept the empty list: the theorem must refuse
+#   ./scripts/plant.sh publish   # flip one byte of the committed .holo vector: PrismPM's validator must refuse
+#   ./scripts/plant.sh evidence  # say closure drift is accepted in the corpus: the generated decision must disagree
+#   ./scripts/plant.sh composer  # change one byte of the vendored PrismPM composer: the lane's vendor gate must refuse
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 LX="${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane}/PrismPM/target/release/lexlean"
 export PATH="$HOME/.cargo/bin:$HOME/.elan/bin:$PATH"
 
-restore() { git reset -q -- shell/index.html 2>/dev/null; git checkout -q -- tools/author.py model/corpus.json shell/index.html src/Dyad.lex.tex lexlean.lock 2>/dev/null; python3 tools/author.py >/dev/null; "$LX" lock >/dev/null 2>&1 || true; }
+restore() { git reset -q -- shell/index.html 2>/dev/null; git checkout -q -- tools/author.py tools/model_workspace.py model/corpus.json model/publish.json model/objects/publish/hello.holo core/src/holo/archive.rs shell/index.html src/Dyad.lex.tex src/Workspace.lex.tex lexlean.lock 2>/dev/null; python3 tools/author.py >/dev/null; "$LX" lock >/dev/null 2>&1 || true; }
 expect_fail() { if "$@" >/tmp/plant.log 2>&1; then echo "GATE DID NOT FIRE: $*"; tail -5 /tmp/plant.log; restore; exit 1; else echo "gate fired as it must: $*"; grep -m1 -E "error|violat|differ|drift|FAILED|panicked" /tmp/plant.log || tail -2 /tmp/plant.log; fi; }
 
 case "${1:-}" in
@@ -46,7 +49,24 @@ EOF
     git add shell/index.html
     expect_fail bash -c "DYAD_LANE_WORK=${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane} ./scripts/lane.sh"
     git reset -q -- shell/index.html ;;
-  *) echo "usage: $0 words|grant|bytes|shell" >&2; exit 2 ;;
+  publish)
+    python3 - <<'EOF'
+import io
+p="model/objects/publish/hello.holo"; b=bytearray(io.open(p,"rb").read()); b[len(b)//3]^=1; io.open(p,"wb").write(bytes(b))
+EOF
+    expect_fail bash -c "cd core && cargo test --release -q --test publish" ;;
+  evidence)
+    python3 - <<'EOF'
+import io,json
+p="model/publish.json"; c=json.load(io.open(p,encoding="utf-8"))
+[x for x in c if x["name"]=="closure drift"][0]["decision"]="Accept"
+io.open(p,"w",encoding="utf-8",newline="\n").write(json.dumps(c,indent=1,ensure_ascii=False)+"\n")
+EOF
+    expect_fail bash -c "cd core && cargo test --release -q --test publish" ;;
+  composer)
+    sed -i 's/Exact Hologram v4 application composition and strict/Exact Hologram v4 application composition, and strict/' core/src/holo/archive.rs
+    expect_fail bash -c "DYAD_LANE_WORK=${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane} ./scripts/lane.sh" ;;
+  *) echo "usage: $0 words|grant|bytes|shell|publish|evidence|composer" >&2; exit 2 ;;
 esac
 restore
 echo "restored"

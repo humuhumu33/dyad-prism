@@ -10,4 +10,5 @@ shell/scaffold/
 shell/404.html
 shell/sw.js
 shell/manifest.json
+shell/provenance.json
 shell/v1/

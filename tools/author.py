@@ -1,12 +1,13 @@
-"""Authoring the dyad-prism model: four LexLean modules from two declaration sources.
+"""Authoring the dyad-prism model: five LexLean modules from three declaration sources.
 
 The authority is the set of .lex.tex files this script writes; LexLean and PrismPM read only those.
 The declarations live as data in tools/model_workspace.py (the builder: records, snapshot preimage,
 restore, capability, versions, preview) and tools/model_inference.py (freeinference: transcript,
 preimages, memo, the route table, the OpenAI wire, the OpenRouter request, the κ object addressing
-rule, pool and stage tables, pack, ladder and loader). This script partitions them into modules,
-qualifies every reference that crosses a module boundary, merges the two View records into one, and
-writes src/Workspace.lex.tex, src/Inference.lex.tex, src/Object.lex.tex and src/Dyad.lex.tex, plus
+rule, pool and stage tables, pack, ladder and loader) and tools/model_publish.py (the published
+application: its model document, source manifest, decision and path). This script partitions them
+into modules, qualifies every reference that crosses a module boundary, merges the two View records
+into one, and writes src/{Workspace,Inference,Object,Publish,Dyad}.lex.tex, plus
 model/roots.txt (Module.name, strictly sorted, as the exporter demands).
 
 Run from the project root: python3 tools/author.py
@@ -30,6 +31,7 @@ def load(name):
 
 inf = load("model_inference")
 ws = load("model_workspace")
+pub = load("model_publish")
 
 # ---- what each source contributes
 ESC = {"escapeBackslash", "escapeQuote", "escapeNewline", "escapeReturn", "escapeJson"}
@@ -72,7 +74,7 @@ view_definition["body"] = {"fields": values, "kind": "record", "type": {"name": 
 view_theorem = by_name(ws.decls, "view_headline")
 
 # ---- modules
-modules = {"Workspace": [], "Inference": [], "Object": [], "Dyad": []}
+modules = {"Workspace": [], "Inference": [], "Object": [], "Publish": [], "Dyad": []}
 name2mod = {}
 
 
@@ -98,6 +100,8 @@ for d in inf_decls:
         place("Dyad", d)
     else:
         place("Inference", d)
+for d in pub.decls:
+    place("Publish", d)
 for d in (view_structure, view_definition, view_theorem):
     place("Dyad", d)
 
@@ -116,7 +120,7 @@ def mentioned(term, out):
     return out
 
 
-ORDER = ["Dyad", "Object", "Inference", "Workspace"]
+ORDER = ["Dyad", "Publish", "Object", "Inference", "Workspace"]
 for d in inf_decls:
     if d["kind"] != "theorem":
         continue
@@ -161,7 +165,7 @@ def document(name, imports, decls):
 (ROOT / "src").mkdir(exist_ok=True)
 (ROOT / "model").mkdir(exist_ok=True)
 roots = []
-DEPENDENCY_ORDER = ["Workspace", "Inference", "Object", "Dyad"]
+DEPENDENCY_ORDER = ["Workspace", "Inference", "Object", "Publish", "Dyad"]
 for name in DEPENDENCY_ORDER:
     decls = modules[name]
     imports = set()

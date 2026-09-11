@@ -71,5 +71,7 @@ out.write_text(json.dumps(cases, indent=1, ensure_ascii=False) + "\n", encoding=
 print(f"wrote {out}: {len(cases)} cases")
 inference = subprocess.run([sys.executable, str(root / "tools" / "corpus_inference.py")], cwd=root)
 if inference.returncode: sys.exit(inference.returncode)
+publish = subprocess.run([sys.executable, str(root / "tools" / "corpus_publish.py")], cwd=root)
+if publish.returncode: sys.exit(publish.returncode)
 run = subprocess.run(["cargo", "test", "--release", "-q", "--", "--nocapture"], cwd=root / "core")
 sys.exit(run.returncode)

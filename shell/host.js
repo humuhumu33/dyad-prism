@@ -10,6 +10,7 @@
 import { buildSystemPrompt } from "./prompts.js";
 import * as inference from "./inference.js";
 import { viewReady, lookup, routeOf, refusalWord, seal as sealAnswer, sealPaid, paidGenerate, gpuReady, gpuIds, rememberSession, withEngine, engine, readWho, MODEL_ID } from "./inference.js";
+import { install, installed, encodeView, b64, unb64, sha256 } from "./holo.js";
 
 const MARKER = "dyad-ipc-envelope-v1";
 const BASE = new URL("./", import.meta.url); // the shell's directory, wherever it is served
@@ -45,8 +46,10 @@ const DEFAULT_SETTINGS = {
   autoExpandPreviewPanel: true, enableContextCompaction: true, enablePnpmMinimumReleaseAgeWarning: false,
   previewIdleTimeoutPolicy: "default", nodeRuntimePreference: "system", disablePreviewNodeAutoInstall: true,
 };
-handlers.set("get-user-settings", async () => (await get("settings", "user")) || DEFAULT_SETTINGS);
-handlers.set("set-user-settings", async (patch) => { const s = { ...((await get("settings", "user")) || DEFAULT_SETTINGS), ...(patch || {}) }; await put("settings", "user", s); return s; });
+// A stored record from an earlier shell may lack a key a newer renderer reads (providerSettings, say): the
+// defaults fill what is missing, the record keeps what it has.
+handlers.set("get-user-settings", async () => ({ ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}) }));
+handlers.set("set-user-settings", async (patch) => { const s = { ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}), ...(patch || {}) }; await put("settings", "user", s); return s; });
 handlers.set("get-env-vars", () => ({}));
 handlers.set("get-system-platform", () => "web");
 handlers.set("get-app-version", () => ({ version: "1.15.0-web" }));
@@ -535,6 +538,164 @@ handlers.set("edit-app-file", async (input) => { await originalPut("objects", aw
 const rawCreate = handlers.get("create-app");
 handlers.set("create-app", async (input) => { for (const src of Object.values(await loadScaffold())) { const b = enc.encode(src); await originalPut("objects", await kappa(b), b); } return rawCreate(input); });
 
+
+// ---- publish: a version becomes a Hologram application. The View is the project's built page with
+// every dependency bundled in (a portable View has no network); the guest is this very core; the model
+// document and the source manifest are the core's bytes; PrismPM's own archive code, vendored verbatim
+// into the core, composes the .holo v4 and validates it; the archive is kept at its address, unpacked
+// under holoPath(κ) for the worker, and offered as one link and one download. The core decides first:
+// the shell closure of this page must be the closure the lane recorded beside the core, and the
+// lane's attestation must be present; otherwise the View's refusal word and an audit row.
+async function buildPortable(appId) {
+  await coreReady;
+  const t0 = performance.now();
+  const files = new Map();
+  for (const p of await filesOf(appId)) files.set(p, await get("files", appId + ":" + p));
+  const pkg = await (await fetch(new URL("scaffold/package.json", BASE))).json();
+  const pkgs = Object.fromEntries(Object.entries(pkg.dependencies).map(([n, v]) => [n, v.replace(/^[\^~]/, "")]));
+  const app = await get("apps", appId);
+  for (const d of app.extraDeps || []) { const at = d.lastIndexOf("@"); if (at > 0) pkgs[d.slice(0, at)] = d.slice(at + 1); else pkgs[d] = ""; }
+  // Every package resolves to one esm.sh URL and is fetched once; react and react-dom are external
+  // to every other package so one React is bundled; the output is one script with no imports left.
+  const urlOf = (name) => {
+    const bare = name.startsWith("@") ? name.split("/").slice(0, 2).join("/") : name.split("/")[0];
+    const sub = name.slice(bare.length), v = pkgs[bare] ? "@" + pkgs[bare] : "";
+    if (bare === "react") return `https://esm.sh/react${v}${sub}?target=es2022`;
+    if (bare === "react-dom") return `https://esm.sh/react-dom${v}${sub}?target=es2022&external=react`;
+    return `https://esm.sh/${bare}${v}${sub}?target=es2022&external=react,react-dom`;
+  };
+  const fetched = new Map();
+  const tw = await (await fetch(new URL("scaffold/tailwind.config.ts", BASE))).text();
+  const m = tw.match(/theme:\s*(\{[\s\S]*\n  \}),\n  plugins/);
+  const tailwindConfig = m ? "{darkMode:['class'],theme:" + m[1] + "}" : "{}";
+  const exts = ["", ".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts"];
+  const resolveFile = (p) => { for (const e of exts) if (files.has(p + e)) return p + e; return null; };
+  const plugin = { name: "portable", setup(b) {
+    b.onResolve({ filter: /.*/ }, (args) => {
+      if (args.namespace === "http") {
+        if (/^https?:\/\//.test(args.path) || args.path.startsWith("/") || /^\.\.?\//.test(args.path)) return { path: new URL(args.path, args.importer).href, namespace: "http" };
+        return { path: urlOf(args.path), namespace: "http" };
+      }
+      if (args.kind === "entry-point") { const r = resolveFile(args.path); if (r) return { path: r, namespace: "project" }; }
+      if (args.path.startsWith("@/")) { const r = resolveFile("src/" + args.path.slice(2)); if (r) return { path: r, namespace: "project" }; }
+      if (/^\.\.?\//.test(args.path) || args.path.startsWith("/")) {
+        const base = args.importer ? args.importer.split("/").slice(0, -1).join("/") : "src";
+        const norm = new URL(args.path, "file:///" + base + "/").pathname.slice(1);
+        const r = resolveFile(norm); if (r) return { path: r, namespace: "project" };
+        return { errors: [{ text: "not in project: " + norm }] };
+      }
+      if (/^https?:\/\//.test(args.path)) return { path: args.path, namespace: "http" };
+      return { path: urlOf(args.path), namespace: "http" };
+    });
+    b.onLoad({ filter: /.*/, namespace: "http" }, async (args) => {
+      let text = fetched.get(args.path);
+      if (text == null) { const r = await fetch(args.path); if (!r.ok) throw new Error("fetch " + args.path + ": " + r.status); text = await r.text(); fetched.set(args.path, text); }
+      return { contents: text, loader: /\.css(\?|$)/.test(args.path) ? "css" : "js" };
+    });
+    b.onLoad({ filter: /.*/, namespace: "project" }, (args) => {
+      const src = files.get(args.path);
+      if (args.path.endsWith(".css")) return { contents: src.replace(/@tailwind[^;]*;/g, ""), loader: "css" };
+      return { contents: src, loader: args.path.endsWith(".tsx") ? "tsx" : args.path.endsWith(".ts") ? "ts" : "jsx" };
+    });
+  } };
+  const es = await esbuild();
+  const r = await es.build({ entryPoints: ["src/main.tsx"], bundle: true, write: false, format: "esm", target: "es2022", jsx: "automatic", plugins: [plugin], outdir: "out", logLevel: "silent", minify: true,
+    define: { "import.meta.env.DEV": "false", "import.meta.env.MODE": '"production"', "import.meta.env.BASE_URL": "__HOLO_BASE__", "process.env.NODE_ENV": '"production"' } });
+  const js = r.outputFiles.find((f) => f.path.endsWith(".js")).text;
+  const css = (r.outputFiles.find((f) => f.path.endsWith(".css")) || { text: "" }).text;
+  // Tailwind, compiled once at publish: the play build cannot be fetched (its CDN sends no CORS
+  // header), so the page is loaded once, hidden, under a preview address with the play build as a
+  // script tag; the build scans the page (the bundle is inline, so every class it names is seen) and
+  // the stylesheet it writes is taken as static CSS. The published page then needs no network and no
+  // compiler to style itself.
+  const inline = (s) => s.replace(/<\/script/g, "<\\/script");
+  const body = `<style>${css}</style></head><body><div id="root"></div>\n<script type="module">${inline(js)}<\/script></body></html>`;
+  const head = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<script>var __HOLO_BASE__ = location.pathname.replace(/index\\.html$/, "");`;
+  // Every class like token of the bundle, the project's CSS and its HTML, listed once in a hidden
+  // element, so the compiler's first scan already sees every candidate whether or not the page has
+  // rendered it yet; the compile is then judged by the rendered page: no class in use without a rule.
+  const candidates = [...new Set((js + " " + css).match(/[A-Za-z][A-Za-z0-9_\-:\/\.\[\]#%!]*/g) || [])].filter((t) => t.length < 120).join(" ");
+  const compilePage = head + ` tailwind = { config: ${tailwindConfig} };<\/script>\n<script src="https://cdn.tailwindcss.com"><\/script>\n<div hidden id="tw-candidates" class="${candidates.replace(/"/g, "")}"></div>\n` + body;
+  const tailwindCss = await compileTailwind(compilePage);
+  const html = head + `<\/script>\n<style>${tailwindCss}</style>\n` + body;
+  return { html, modules: fetched.size, jsBytes: js.length, cssBytes: css.length, tailwindBytes: tailwindCss.length, ms: Math.round(performance.now() - t0) };
+}
+async function compileTailwind(page) {
+  const id = "tw-" + Date.now().toString(36);
+  const path = new URL("p/" + id + "/index.html", BASE).pathname;
+  const cache = await caches.open("previews");
+  await cache.put(path, new Response(page, { headers: { "content-type": "text/html; charset=utf-8" } }));
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;width:1280px;height:800px;left:-2000px;top:0;visibility:hidden";
+  frame.src = path;
+  document.body.append(frame);
+  try {
+    const t0 = performance.now();
+    let last = "", stable = 0;
+    const escapeClass = (c) => c.replace(/[^a-zA-Z0-9_-]/g, (m) => "\\" + m);
+    while (performance.now() - t0 < 30000) {
+      await new Promise((r) => setTimeout(r, 250));
+      const doc = frame.contentDocument;
+      const sheets = doc ? [...doc.querySelectorAll("style")].map((s) => s.textContent) : [];
+      const sheet = sheets.find((t) => t.includes("--tw-"));
+      if (!sheet || !doc.getElementById("root") || !doc.getElementById("root").childElementCount) continue;
+      // Converged when the rendered page uses no class the compiled sheet (or the project's own CSS) lacks.
+      const all = sheets.join("\n");
+      const used = new Set([...doc.querySelectorAll("[class]")].filter((e) => e.id !== "tw-candidates").flatMap((e) => String(e.className.baseVal ?? e.className).split(/\s+/).filter(Boolean)));
+      const missing = [...used].filter((c) => !all.includes("." + escapeClass(c)));
+      const key = sheet.length + ":" + missing.join(",");
+      if (key === last) { stable += 1; if (stable >= 3 && missing.length === 0) return sheet; if (stable >= 12) return sheet; } else { last = key; stable = 0; }
+    }
+    if (last) throw new Error("tailwind did not converge on the page");
+    throw new Error("tailwind did not compile the page");
+  } finally {
+    frame.remove();
+    await cache.delete(path);
+  }
+}
+window.__portable = buildPortable;
+const PROVENANCE_FIELDS = ["source_id", "semantic_id", "compiler_semantics_id", "snapshot_id", "stdlib_semantics_id", "prism_stdlib_crate_sha256", "lexlean_commit", "lexlean_package_sha256", "lean4_prod_commit", "hologram_live_commit", "uor_hologram_commit", "target_profile_id", "lean_manifest_sha256", "lcnf_manifest_sha256", "generated_core_sha256", "cargo_name", "cargo_version", "cargo_crate_sha256", "view_model_id", "browser_projection_sha256"];
+let lastPublish = null;
+const holoUrl = (k) => new URL(core.run({ op: "holo-path", kappa: k }).path.slice(1), BASE).href;
+handlers.set("holo:view", async () => { await coreReady; return core.run({ op: "view" }); });
+handlers.set("holo:list", async (appId) => { await coreReady; return (await installed()).filter((r) => r.appId === appId).map((r) => ({ ...r, url: holoUrl(r.kappa) })); });
+handlers.set("holo:publish", async ({ appId }) => {
+  await coreReady;
+  const t0 = performance.now();
+  const words = core.run({ op: "view" });
+  const [manifest, provenance] = await Promise.all([
+    fetch(new URL("manifest.json", BASE), { cache: "no-store" }).then((r) => r.json()),
+    fetch(new URL("provenance.json", BASE), { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ]);
+  const closure = manifest.closure, built = provenance ? provenance.browser_projection_sha256 || "" : "";
+  const attestation = provenance && provenance.attestation_id ? provenance.attestation_id : null;
+  const { decision } = core.run({ op: "publish-decision", closure, built, attestation });
+  const app = await get("apps", appId);
+  const version = await get("refs", appId + ":main");
+  const row = (outcome, resource) => put("audit", Date.now() + ":publish:" + appId, { timestamp_millis: Date.now(), principal: "app:" + appId, operation: "holo.application.publish", resource, outcome });
+  if (decision !== "Accept") { await row("refused", version || ""); return { decision, word: words.publishRefusedLabel, closure, built, attestation }; }
+  const page = await buildPortable(appId);
+  const view = encodeView([{ path: "index.html", bytes: enc.encode(page.html) }]);
+  const guest = new Uint8Array(await (await fetch(new URL("core.wasm", BASE), { cache: "no-store" })).arrayBuffer());
+  const model = core.run({ op: "publish-preimage", application: app.name, version, closure, attestation }).bytes;
+  const modelBytes = enc.encode(model);
+  const modelId = await sha256(modelBytes);
+  const source = core.run({ op: "source-manifest", leanManifest: provenance.lean_manifest_sha256, coverage: provenance.coverage_sha256, kernel: provenance.kernel_ir_sha256, modelId, semanticId: provenance.semantic_id, sourceId: provenance.source_id }).bytes;
+  const sourceBytes = enc.encode(source);
+  const prov = Object.fromEntries(PROVENANCE_FIELDS.map((k) => [k, provenance[k]]));
+  const t1 = performance.now();
+  const composed = core.run({ op: "compose", application: app.name, guest: b64(guest), view: b64(view), model: b64(modelBytes), source: b64(sourceBytes), provenance: prov });
+  const composeMs = Math.round(performance.now() - t1);
+  const bytes = unb64(composed.bytes);
+  const address = await kappa(bytes);
+  if (address !== composed.identities.archive_kappa) throw new Error("the page's address of the archive differs from PrismPM's: " + address);
+  const done = await install(bytes, { appId, application: app.name, version });
+  await row("granted", address);
+  const record = { application: app.name, version, closure, attestation, provenance: prov, identities: composed.identities, directory: composed.directory, byteLength: bytes.length, modelId, viewBytes: view.length, guestBytes: guest.length };
+  lastPublish = { record, bytes, guest, view, model: modelBytes, source: sourceBytes, page };
+  return { decision, kappa: address, url: done.url, byteLength: bytes.length, viewBytes: view.length, guestBytes: guest.length, ms: Math.round(performance.now() - t0), buildMs: page.ms, composeMs, installMs: done.ms, modules: page.modules, jsBytes: page.jsBytes, cssBytes: page.cssBytes, tailwindBytes: page.tailwindBytes, identities: composed.identities, record };
+});
+
 window.electron = {
   ipcRenderer: {
     invokeEnvelope: (channel, ...args) => dispatch(channel, args),
@@ -560,5 +721,5 @@ window.electron = {
   history.replaceState(null, "", base + "chat?id=" + created.chatId + "&appId=" + created.app.id);
   dispatchEvent(new PopStateEvent("popstate"));
 })();
-window.__host = { handlers, emit, seen, get, put, all, kappa, core: () => core, coreReady, view: () => coreReady.then((c) => c.run({ op: "view" })) };
+window.__host = { handlers, emit, seen, get, put, all, kappa, core: () => core, coreReady, view: () => coreReady.then((c) => c.run({ op: "view" })), publish: () => lastPublish };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("sw.js", BASE)).catch(() => {});

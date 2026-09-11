@@ -2,7 +2,8 @@
 //!
 //! An adapter, not the model: every visible word comes from the Lean verified `View` record; this
 //! file owns only markup. It writes `shell/index.html` (the hero with the appearance system, the
-//! who pill, the connect pill and sheet), `shell/app.webmanifest`, `shell/v1/openapi.json`,
+//! who pill, the connect pill and sheet), `shell/holo.html` (the runner for published
+//! applications), `shell/app.webmanifest`, `shell/v1/openapi.json`,
 //! `shell/manifest.json` (the hash list the service worker precaches from, so the shell is one
 //! versioned closure) and `shell/sw.js` from `shell/sw.template.js` with the closure digest inside.
 //!
@@ -222,7 +223,8 @@ fn openapi() -> String {
 }
 
 /// Every file of the shell with its SHA-256, lexically ordered. Not in the closure: the worker and
-/// its template, this list, Dyad's renderer build under `app/` and the staged `scaffold/` and
+/// its template, this list, `provenance.json` (the closure digest is one of its fields; the worker
+/// precaches it beside this list), Dyad's renderer build under `app/` and the staged `scaffold/` and
 /// `404.html` (written after the lane by the Pages workflow and content hashed by Vite already), and
 /// model weights, which live in the device store the engine keeps.
 fn manifest(shell: &Path) -> String {
@@ -247,7 +249,7 @@ fn manifest(shell: &Path) -> String {
     let mut rows = Vec::new();
     for rel in files {
         let name = rel.to_string_lossy().replace('\\', "/");
-        if name == "manifest.json" || name == "sw.js" || name == "sw.template.js" || name == "404.html" {
+        if name == "manifest.json" || name == "provenance.json" || name == "sw.js" || name == "sw.template.js" || name == "404.html" {
             continue;
         }
         let bytes = std::fs::read(shell.join(&rel)).expect("read shell file");
@@ -307,11 +309,89 @@ fn sha256(bytes: &[u8]) -> String {
     h.iter().map(|word| format!("{word:08x}")).collect()
 }
 
+
+/// The runner page: opens a published application on any device. Served at `holo.html` and, by the
+/// worker, at holoPath(κ) when the View is not yet unpacked there: the page finds the bytes in the
+/// device store or asks for the file, verifies them through the core (PrismPM's own validator),
+/// unpacks the View under its address and reloads. Every word is the View's.
+fn holo_page() -> String {
+    let v = view();
+    format!(
+        r##"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>{title}</title>
+<script>document.write('<base href="' + location.pathname.replace(/holo\/.*$/, "").replace(/[^/]*$/, "") + '">');</script>
+<link rel="icon" href="mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="shell.css">
+<script>(function () {{ var root = document.documentElement, s = null; try {{ s = JSON.parse(localStorage.getItem("holo.theme.v1") || "null"); }} catch (e) {{}} var palette = s && s.palette === "light" ? "light" : "dark"; root.setAttribute("data-holo-palette", palette); root.setAttribute("data-holo-immersive", "off"); root.style.setProperty("color-scheme", palette); }})();</script>
+<script type="application/json" id="view">{view_json}</script>
+</head>
+<body>
+<a class="mark" href="./" aria-label="Hologram"><img class="on-dark" src="lockup-white.svg" alt="Hologram" width="157" height="30"><img class="on-light" src="lockup-black.svg" alt="Hologram" width="157" height="30"></a>
+<main>
+  <h1>{title}</h1>
+  <p class="lede">{lede}</p>
+  <p class="hint mono" id="status"></p>
+  <p><label class="btn" for="file" id="pick">{pick}</label><input id="file" type="file" accept=".holo" hidden></p>
+  <ul class="apps" id="apps"></ul>
+  <p class="hint">{runs}</p>
+</main>
+<script type="module">
+import {{ install, stored, installed }} from "./holo.js";
+import {{ coreReady }} from "./inference.js";
+const V = JSON.parse(document.getElementById("view").textContent);
+const status = document.getElementById("status"), list = document.getElementById("apps");
+const short = (k) => k.replace(/^blake3:/, "").slice(0, 12) + "…";
+const wanted = (location.pathname.match(/\/holo\/([^/]+)\//) || [])[1] || null;
+async function show() {{
+  const rows = await installed();
+  list.innerHTML = "";
+  for (const r of rows) {{
+    const li = document.createElement("li");
+    const a = document.createElement("a"); a.href = new URL("holo/" + r.kappa + "/", document.baseURI).href; a.textContent = (r.application || "application") + " · " + short(r.kappa) + " · " + r.byteLength + " bytes";
+    const d = document.createElement("a"); d.href = new URL("holo/" + r.kappa + ".holo", document.baseURI).href; d.textContent = V.downloadLabel; d.className = "hint"; d.setAttribute("download", "");
+    li.append(a, " ", d); list.append(li);
+  }}
+}}
+async function open(bytes) {{
+  status.textContent = V.verifyingLabel + "…";
+  try {{
+    const done = await install(bytes);
+    status.textContent = V.publishedLabel + " · " + short(done.kappa) + " · " + done.byteLength + " bytes · " + done.ms + " ms";
+    await show();
+    location.href = done.url;
+  }} catch (e) {{
+    status.textContent = V.refusedLabel + " · " + String((e && e.message) || e);
+  }}
+}}
+document.getElementById("file").addEventListener("change", async (e) => {{ const f = e.target.files[0]; if (f) open(new Uint8Array(await f.arrayBuffer())); }});
+(async () => {{
+  await coreReady();
+  await show();
+  if (wanted) {{ const bytes = await stored(wanted); if (bytes) open(bytes); else status.textContent = short(wanted) + " · " + V.pickLabel; }}
+}})();
+</script>
+</body>
+</html>
+"##,
+        title = esc(&v.holoTitle),
+        lede = esc(&v.holoLede),
+        pick = esc(&v.pickLabel),
+        runs = esc(&v.runsLabel),
+        view_json = view_json()
+    )
+}
+
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
     let shell = root.join("shell");
     std::fs::create_dir_all(shell.join("v1")).expect("shell/v1");
     std::fs::write(shell.join("index.html"), page()).expect("write index.html");
+    std::fs::write(shell.join("holo.html"), holo_page()).expect("write holo.html");
     std::fs::write(shell.join("app.webmanifest"), webmanifest()).expect("write webmanifest");
     std::fs::write(shell.join("v1").join("openapi.json"), openapi()).expect("write openapi.json");
     let manifest = manifest(&shell);
@@ -321,5 +401,5 @@ fn main() {
     let closure = serde_json::from_str::<serde_json::Value>(&manifest).unwrap()["closure"].as_str().unwrap().to_owned();
     let worker = std::fs::read_to_string(shell.join("sw.template.js")).expect("read shell/sw.template.js");
     std::fs::write(shell.join("sw.js"), worker.replace("__CLOSURE__", &closure)).expect("write sw.js");
-    println!("projected shell/index.html, app.webmanifest, v1/openapi.json, manifest.json, sw.js from view(); closure {}", &closure[..12]);
+    println!("projected shell/index.html, holo.html, app.webmanifest, v1/openapi.json, manifest.json, sw.js from view(); closure {}", &closure[..12]);
 }

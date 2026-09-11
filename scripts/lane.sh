@@ -28,6 +28,11 @@ if [ ! -x "$WORK/PrismPM/target/release/lexlean" ]; then
 fi
 LX="$WORK/PrismPM/target/release/lexlean"
 
+# 0b. PrismPM's archive code is vendored into core/src (holo/*.rs verbatim; error.rs minus the one
+#     LexLean conversion), so a published application is composed by PrismPM's own writer. Refuse a
+#     build whose copy differs from PrismPM's at the pinned commit (tools/prismpm_vendor.sha256).
+python3 "$ROOT/tools/prismpm_vendor.py" "$WORK/PrismPM"
+
 # 1. Lean toolchain.
 export PATH="$HOME/.elan/bin:$PATH"
 if ! elan toolchain list 2>/dev/null | grep -q 'leanprover/lean4:v4.32.1'; then
@@ -159,6 +164,14 @@ ls -la "$ROOT/shell/core.wasm"
 cargo run --release -q --bin project-shell
 cd "$ROOT"
 if [ "${LANE_WRITE:-0}" != "1" ]; then
-  git diff --exit-code -- shell/index.html || { echo "shell/index.html drifted from the projected View; run LANE_WRITE=1 ./scripts/lane.sh and commit" >&2; exit 1; }
+  git diff --exit-code -- shell/index.html shell/holo.html || { echo "shell/index.html or shell/holo.html drifted from the projected View; run LANE_WRITE=1 ./scripts/lane.sh and commit" >&2; exit 1; }
 fi
+
+# 8. The evidence a published application carries (shell/provenance.json): derived from the
+#    attestation, the build manifest, PrismPM's dependency register and stdlib release, its pinned
+#    hologram-live and uor-hologram commits, the export, the generated core, the packaged crate and
+#    the shell closure. Precached by the worker beside manifest.json; outside the closure because the
+#    closure digest is one of its fields. Nothing in it is typed in; a field the lane cannot derive
+#    stops the lane.
+python3 tools/provenance.py "$WORK/PrismPM" "$ATTESTATION_ID" "$BUILD_ID" "$WS/export-a"
 echo "lane: green"

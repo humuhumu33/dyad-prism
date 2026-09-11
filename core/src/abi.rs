@@ -11,11 +11,16 @@
 //!              encode-final, encode-error, encode-models, done, encode-openrouter-request
 //!   Object:    expert-page, table-page, root-preimage, object-line, admit, page-action, pool-admit,
 //!              fetch-source, prefetch-order, pack-rank, first-token-ready, promote, loader-start
+//!   Publish:   publish-preimage, source-manifest, publish-decision, holo-path, and through PrismPM's
+//!              vendored archive code: compose (a .holo v4 from the guest, the View bundle, the model
+//!              document, the source manifest and the provenance; bytes travel as base64) and
+//!              validate-application (PrismPM's strict Holo/1 profile check)
 //!   Dyad:      view
 //! Errors: {"error":"…"}.
 
+use crate::holo::archive::{compose_application, validate_application, ApplicationArchiveInput, ArchiveProvenance};
 use crate::{
-    admitPage, done, encodeCompletion, encodeDelta, encodeError, encodeFinal, encodeModels, encodeOpenRouterRequest, encodeRole, endpointReady, expertPage, fetchSource, firstTokenReady, headOf, loaderStart, networkDecision, objEntry, packRank, packed, pageAction, poolAdmit, prefetchOrder, preimages, previewPath, promote, restoreDecision, rootPreimage, route, snapshotPreimage, tablePage, view, Admission, Capabilities, Completion, Decision, Entry, Grant, Manifest, Message, Obj, PageAction, Priority, Project, Provider, Ref, Request, Route, Section, Shard, Source, Staging, Start, Tier,
+    admitPage, holoPath, publishDecision, publishPreimage, sourceManifest, done, encodeCompletion, encodeDelta, encodeError, encodeFinal, encodeModels, encodeOpenRouterRequest, encodeRole, endpointReady, expertPage, fetchSource, firstTokenReady, headOf, loaderStart, networkDecision, objEntry, packRank, packed, pageAction, poolAdmit, prefetchOrder, preimages, previewPath, promote, restoreDecision, rootPreimage, route, snapshotPreimage, tablePage, view, Admission, Capabilities, Completion, Decision, Entry, Grant, Manifest, Message, Obj, PageAction, Priority, Project, Provider, Ref, Request, Route, Section, Shard, Source, Staging, Start, Tier,
 };
 use serde_json::{json, Value};
 
@@ -114,6 +119,47 @@ fn decision(d: Decision) -> Value {
     json!({ "decision": match d { Decision::Accept => "Accept", Decision::Refuse => "Refuse" } })
 }
 
+// Bytes cross the JSON boundary as standard base64 (RFC 4648, padded); a transport spelling only.
+const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+fn b64_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let n = (u32::from(chunk[0]) << 16) | (chunk.get(1).map(|b| u32::from(*b) << 8).unwrap_or(0)) | u32::from(*chunk.get(2).unwrap_or(&0));
+        out.push(B64[(n >> 18) as usize & 63] as char);
+        out.push(B64[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { B64[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { B64[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+fn b64_decode(text: &str) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    let mut acc: u32 = 0;
+    let mut bits = 0;
+    for c in text.bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' | b'\n' | b'\r' => continue,
+            _ => return Err("bytes are not base64".to_owned()),
+        };
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    Ok(out)
+}
+fn bytes_of(value: &Value) -> Result<Vec<u8>, String> {
+    b64_decode(value.as_str().unwrap_or(""))
+}
+
 fn run(input: &[u8]) -> Value {
     let value: Value = match serde_json::from_slice(input) {
         Ok(value) => value,
@@ -147,6 +193,40 @@ fn run(input: &[u8]) -> Value {
             json!({ "kappa": headOf(&refs, text(&value["branch"])) })
         }
         "view" => view_json(),
+        // Publish: the words and bytes the model owns, then PrismPM's own composer and validator.
+        "publish-preimage" => json!({ "bytes": publishPreimage(text(&value["application"]), text(&value["version"]), text(&value["closure"]), text(&value["attestation"])) }),
+        "source-manifest" => json!({ "bytes": sourceManifest(text(&value["leanManifest"]), text(&value["coverage"]), text(&value["kernel"]), text(&value["modelId"]), text(&value["semanticId"]), text(&value["sourceId"])) }),
+        "publish-decision" => decision(publishDecision(text(&value["closure"]), text(&value["built"]), value["attestation"].as_str().map(str::to_owned))),
+        "holo-path" => json!({ "path": holoPath(text(&value["kappa"])) }),
+        "compose" => {
+            let provenance: ArchiveProvenance = match serde_json::from_value(value["provenance"].clone()) {
+                Ok(p) => p,
+                Err(error) => return json!({ "error": format!("provenance: {error}") }),
+            };
+            let input = match (bytes_of(&value["guest"]), bytes_of(&value["view"]), bytes_of(&value["model"]), bytes_of(&value["source"])) {
+                (Ok(guest_wasm), Ok(view_bundle), Ok(model_document), Ok(source_manifest)) => ApplicationArchiveInput { application_name: text(&value["application"]), guest_wasm, view_bundle, model_document, source_manifest, provenance },
+                _ => return json!({ "error": "guest, view, model and source must be base64" }),
+            };
+            match compose_application(&input) {
+                Ok(holo) => json!({
+                    "bytes": b64_encode(&holo.bytes),
+                    "byteLength": holo.bytes.len(),
+                    "identities": holo.identities,
+                    "directory": String::from_utf8_lossy(&holo.directory),
+                    "provenance": String::from_utf8_lossy(&holo.prism_extension),
+                    "applicationManifest": b64_encode(&holo.application_manifest),
+                    "capabilityRequest": b64_encode(&holo.capability_request),
+                }),
+                Err(error) => json!({ "error": format!("{}: {}", error.code, error.message) }),
+            }
+        }
+        "validate-application" => match bytes_of(&value["bytes"]) {
+            Ok(bytes) => match validate_application(&bytes) {
+                Ok(()) => json!({ "valid": true, "byteLength": bytes.len() }),
+                Err(error) => json!({ "error": format!("{}: {}", error.code, error.message) }),
+            },
+            Err(error) => json!({ "error": error }),
+        },
         // The wire: every response byte comes from the generated encoders.
         "encode-completion" => json!({ "bytes": encodeCompletion(&completion(&value["completion"])) }),
         "encode-role" => json!({ "bytes": encodeRole(&completion(&value["completion"])) }),
@@ -228,6 +308,18 @@ pub fn view_json() -> Value {
         "rollbackLabel": v.rollbackLabel,
         "refusedLabel": v.refusedLabel,
         "offlineLabel": v.offlineLabel,
+        "publishLabel": v.publishLabel,
+        "publishingLabel": v.publishingLabel,
+        "publishedLabel": v.publishedLabel,
+        "publishRefusedLabel": v.publishRefusedLabel,
+        "holoLabel": v.holoLabel,
+        "downloadLabel": v.downloadLabel,
+        "openLabel": v.openLabel,
+        "runsLabel": v.runsLabel,
+        "holoTitle": v.holoTitle,
+        "holoLede": v.holoLede,
+        "pickLabel": v.pickLabel,
+        "verifyingLabel": v.verifyingLabel,
         "loadingLabel": v.loadingLabel,
         "servedLabel": v.servedLabel,
         "sealedLabel": v.sealedLabel,
