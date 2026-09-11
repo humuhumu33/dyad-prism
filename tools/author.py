@@ -1,194 +1,177 @@
-"""Authoring helper for src/Dyad.lex.tex, the authority of dyad-prism.
+"""Authoring the dyad-prism model: four LexLean modules from two declaration sources.
 
-The .lex.tex file this script writes is the only thing LexLean and PrismPM read. The script exists so
-the semantic module JSON (lexlean/semantic-module/1, the dialect PrismPM's examples/Calculator uses)
-can be written as short Python instead of by hand. Run: python3 tools/author.py
+The authority is the set of .lex.tex files this script writes; LexLean and PrismPM read only those.
+The declarations live as data in tools/model_workspace.py (the builder: records, snapshot preimage,
+restore, capability, versions, preview) and tools/model_inference.py (freeinference: transcript,
+preimages, memo, the route table, the OpenAI wire, the OpenRouter request, the κ object addressing
+rule, pool and stage tables, pack, ladder and loader). This script partitions them into modules,
+qualifies every reference that crosses a module boundary, merges the two View records into one, and
+writes src/Workspace.lex.tex, src/Inference.lex.tex, src/Object.lex.tex and src/Dyad.lex.tex, plus
+model/roots.txt (Module.name, strictly sorted, as the exporter demands).
 
-Module 1, workspace: the records the browser host keeps, the bytes every address is derived from
-(the model owns preimages, never digests), the restore rule (bytes that do not re-derive to their
-address are refused), the capability rule (an origin is admitted only when a grant lists it; the empty
-baseline admits nothing, as hologram-live decides it), and the View, every visible word of the shell.
+Run from the project root: python3 tools/author.py
 
-Shapes kept because of lean4-prod's Rust generator, all met on freeinference-prism: a list returning
-definition cannot be an intermediate; a string parameter of a string returning definition is owned and
-a projected field arrives borrowed, so such definitions take the record and project inside; an owned
-copy of a projected string is split on a delimiter and joined with the same delimiter; a match inside
-a list literal lowers to a closure the exporter refuses, so it is hoisted into its own definition.
+Rules met on the way (all hit): glossary imports precede module imports in a header; a cross module
+reference is the member's "module" field; declaration names are unique across modules because the
+generated Rust is one flat crate; the escape chain is freeinference's five steps (tab included).
 """
-import json, pathlib
+import importlib.util, json, pathlib
 
-NL = "\n"
-BS = "\\"
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = HERE.parent
 
-# Exact axiom sets Lean observes per declaration, pinned by tools/pin_axioms.py (exact policy).
-_PINS = pathlib.Path(__file__).resolve().parent / "axioms.json"
-AXIOMS = json.loads(_PINS.read_text(encoding="utf-8")) if _PINS.exists() else {}
 
-# ---- types
-STRING = {"kind": "string"}
-BYTES = {"kind": "bytes"}
-BOOL = {"kind": "bool"}
-U64 = {"kind": "uint64"}
-def named(n): return {"arguments": [], "kind": "named", "member": {"name": n}}
-def lst(t): return {"element": t, "kind": "list"}
-def opt(t): return {"kind": "option", "value": t}
+def load(name):
+    spec = importlib.util.spec_from_file_location(name, HERE / (name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-# ---- expressions
-def var(n): return {"kind": "var", "name": n}
-def s(v): return {"kind": "string", "value": v}
-def u64(v): return {"kind": "integer", "representation": "uint64", "value": str(v)}
-def u32(v): return {"kind": "integer", "representation": "uint32", "value": str(v)}
-def b(v): return {"kind": "bool", "value": v}
-def call(f, *args): return {"arguments": list(args), "function": {"name": f}, "kind": "call"}
-def prim(op, result, *args): return {"arguments": list(args), "kind": "primitive", "operation": op, "result": result}
-def ctor(name, *args, targs=()):
-    return {"arguments": list(args), "constructor": {"name": name}, "kind": "constructor", "type_arguments": list(targs)}
-def project(field, value): return {"field": field, "kind": "project", "value": value}
-def if_(cond, then, else_): return {"condition": cond, "kind": "if", "then_value": then, "else_value": else_}
-def match(scrutinee, *branches): return {"branches": list(branches), "kind": "match", "scrutinee": scrutinee}
-def branch(ctor_name, binders, body): return {"binders": binders, "body": body, "constructor": {"name": ctor_name}}
-def record(type_name, **fields): return {"fields": [{"field": k, "value": v} for k, v in fields.items()], "kind": "record", "type": {"name": type_name}}
-def cons(head, tail): return {"head": head, "kind": "cons", "tail": tail}
-def nil(t): return {"element": t, "kind": "nil"}
-def strings(*items):
-    out = nil(STRING)
-    for item in reversed(items): out = cons(item, out)
+
+inf = load("model_inference")
+ws = load("model_workspace")
+
+# ---- what each source contributes
+ESC = {"escapeBackslash", "escapeQuote", "escapeNewline", "escapeReturn", "escapeJson"}
+DROP_INF = {"Decision", "decide", "decide_serve", "decide_execute", "decide_refuse", "View", "view", "view_headline"}
+DROP_WS = {"View", "view", "view_headline"} | ESC
+OBJECT_TYPES = {"Range", "Obj", "Shard", "Manifest", "Staging", "PageAction", "Admission", "Source", "Priority", "Section", "Tier", "Start"}
+OBJECT_DEFS = {"stride", "expertPage", "pageBytes", "pageStart", "tablePage", "objKind", "objLabel", "objKappa", "objEntry",
+               "shardEntry", "shardEntries", "shardEntriesFrom", "shardKappa", "shardLabel", "shardObjects", "shardSha256", "sha256Text",
+               "manifestRepo", "manifestRevision", "manifestSpec", "rootPreimage", "admitPage",
+               "pageAction", "poolAdmit", "fetchSource", "prefetchOrder", "packRank", "packed", "firstTokenReady", "promote", "loaderStart"}
+TOP_TYPES = {"Wallpaper", "PaidModel"}
+
+inf_decls = [d for d in inf.decls if d["name"] not in DROP_INF]
+ws_decls = [d for d in ws.decls if d["name"] not in DROP_WS]
+
+
+def by_name(decls, name):
+    for d in decls:
+        if d["name"] == name:
+            return d
+    raise KeyError(name)
+
+
+# ---- one View: the builder's words for the hero, freeinference's words for everything else
+ws_view, inf_view = by_name(ws.decls, "View"), by_name(inf.decls, "View")
+ws_words, inf_words = by_name(ws.decls, "view")["body"], by_name(inf.decls, "view")["body"]
+fields = list(ws_view["fields"])
+values = list(ws_words["fields"])
+have = {f["name"] for f in fields}
+for f in inf_view["fields"]:
+    if f["name"] not in have:
+        fields.append(f)
+        have.add(f["name"])
+inf_values = {a["field"]: a["value"] for a in inf_words["fields"]}
+for f in fields[len(ws_view["fields"]):]:
+    values.append({"field": f["name"], "value": inf_values[f["name"]]})
+view_structure = {"fields": fields, "kind": "structure", "name": "View", "parameters": [], "type_parameters": []}
+view_definition = dict(by_name(ws.decls, "view"))
+view_definition["body"] = {"fields": values, "kind": "record", "type": {"name": "View"}}
+view_theorem = by_name(ws.decls, "view_headline")
+
+# ---- modules
+modules = {"Workspace": [], "Inference": [], "Object": [], "Dyad": []}
+name2mod = {}
+
+
+def place(module, decl):
+    modules[module].append(decl)
+    name2mod[decl["name"]] = module
+
+
+# A module admits no forward reference, so the escape chain comes first in Workspace.
+for d in inf_decls:
+    if d["name"] in ESC:
+        place("Workspace", d)
+for d in ws_decls:
+    place("Workspace", d)
+for d in inf_decls:
+    if d["kind"] == "theorem" or d["name"] in ESC:
+        continue
+    if False:
+        pass
+    elif d["name"] in OBJECT_TYPES or d["name"] in OBJECT_DEFS:
+        place("Object", d)
+    elif d["name"] in TOP_TYPES:
+        place("Dyad", d)
+    else:
+        place("Inference", d)
+for d in (view_structure, view_definition, view_theorem):
+    place("Dyad", d)
+
+
+def mentioned(term, out):
+    if isinstance(term, dict):
+        for key in ("function", "constructor", "type", "member"):
+            m = term.get(key)
+            if isinstance(m, dict) and "name" in m:
+                out.add(m["name"].split(".")[0])
+        for v in term.values():
+            mentioned(v, out)
+    elif isinstance(term, list):
+        for v in term:
+            mentioned(v, out)
     return out
-def join(list_expr, sep=""): return prim("join", STRING, list_expr, s(sep))
-def equal(a, c): return prim("equal", BOOL, a, c)
-def eq(l, r): return {"kind": "eq", "left": l, "right": r}
-def owned(expr):
-    return match(prim("split_exact", opt(lst(STRING)), expr, s(NL), u32(2147483647)),
-                 branch("Option.none", [], s("")),
-                 branch("Option.some", ["fields"], join(var("fields"), NL)))
-def esc_step(name, needle, replacement, inner):
-    return definition(name, [("value", STRING)], STRING,
-        match(prim("split_exact", opt(lst(STRING)), inner, s(needle), u32(2147483647)),
-              branch("Option.none", [], s("")),
-              branch("Option.some", ["parts"], join(var("parts"), replacement))))
-def q(expr): return join(strings(s('"'), call("escapeJson", expr), s('"')))
 
-# ---- declarations
-def inductive(name, *ctors): return {"constructors": [{"fields": [], "name": c} for c in ctors], "kind": "inductive", "name": name, "parameters": [], "type_parameters": []}
-def structure(name, **fields): return {"fields": [{"name": k, "type": v} for k, v in fields.items()], "kind": "structure", "name": name, "parameters": [], "type_parameters": []}
-def definition(name, params, result, body, recursive=None):
-    node = {"axioms": AXIOMS.get(name, []), "body": body, "kind": "definition", "name": name, "parameters": [{"name": k, "type": v} for k, v in params], "result": result}
-    if recursive: node["recursive_argument"] = recursive
-    return node
-def theorem(name, statement, proof="reflexivity"): return {"axioms": AXIOMS.get(name, []), "kind": "theorem", "name": name, "parameters": [], "proof": {"kind": proof}, "statement": statement}
 
-# The snapshot preimage, written once so the definition and the corpus share the term: entries in the
-# order the host sorted them (by path, bytewise), each ["path","kappa",bytes], then the name, then the
-# parent address ("" for the first snapshot). Keys sorted, no spaces, no trailing newline.
-def preimage_body(project_, parent):
-    return join(strings(s('{"entries":['), call("entryLines", project("entries", project_)), s('],"name":'), q(call("projectName", project_)),
-                        s(',"parent":'), q(parent), s("}")))
+ORDER = ["Dyad", "Object", "Inference", "Workspace"]
+for d in inf_decls:
+    if d["kind"] != "theorem":
+        continue
+    names = mentioned(d["statement"], set())
+    mods = {name2mod[n] for n in names if n in name2mod}
+    home = next((m for m in ORDER if m in mods), "Inference")
+    place(home, d)
 
-decls = [
-    # ---- records the host keeps
-    structure("Entry", path=STRING, kappa=STRING, bytes=U64),
-    structure("Project", label=STRING, entries=lst(named("Entry"))),
-    inductive("Decision", "Accept", "Refuse"),
-    # A network grant: one origin or one https prefix, as hologram-live's capabilities.json spells it.
-    structure("Grant", endpoint=STRING),
-    structure("Capabilities", endpoints=lst(named("Grant"))),
-    # Every visible word of the shell; the projector renders the page from this record, nothing is
-    # written in HTML by hand. No hyphens in any string.
-    structure("View", headline=STRING, lede=STRING, promptPlaceholder=STRING, sendLabel=STRING,
-              buildingLabel=STRING, previewLabel=STRING, snapshotLabel=STRING, rollbackLabel=STRING,
-              refusedLabel=STRING, offlineLabel=STRING),
 
-    # ---- JSON escaping, split and join, backslash first
-    esc_step("escapeBackslash", BS, BS + BS, var("value")),
-    esc_step("escapeQuote", '"', BS + '"', call("escapeBackslash", var("value"))),
-    esc_step("escapeNewline", NL, BS + "n", call("escapeQuote", var("value"))),
-    esc_step("escapeReturn", "\r", BS + "r", call("escapeNewline", var("value"))),
-    definition("escapeJson", [("value", STRING)], STRING, call("escapeReturn", var("value"))),
+# ---- qualify every reference that crosses a module boundary, and collect imports
+def qualify(term, current, imports):
+    if isinstance(term, dict):
+        for key in ("function", "constructor", "type", "member"):
+            m = term.get(key)
+            if isinstance(m, dict) and "name" in m:
+                base = m["name"].split(".")[0]
+                home = name2mod.get(base)
+                if home and home != current:
+                    m["module"] = home
+                    imports.add(home)
+        for v in term.values():
+            qualify(v, current, imports)
+    elif isinstance(term, list):
+        for v in term:
+            qualify(v, current, imports)
 
-    # ---- the address preimage of a project state
-    definition("entryPath", [("entry", named("Entry"))], STRING, owned(project("path", var("entry")))),
-    definition("entryKappa", [("entry", named("Entry"))], STRING, owned(project("kappa", var("entry")))),
-    definition("projectName", [("project", named("Project"))], STRING, owned(project("label", var("project")))),
-    definition("entryLine", [("entry", named("Entry"))], STRING,
-        join(strings(s("["), q(call("entryPath", var("entry"))), s(","), q(call("entryKappa", var("entry"))), s(","),
-                     prim("format_decimal", STRING, project("bytes", var("entry"))), s("]")))),
-    definition("entryLines", [("entries", lst(named("Entry")))], STRING,
-        match(var("entries"),
-            branch("List.nil", [], s("")),
-            branch("List.cons", ["entry", "rest"],
-                match(var("rest"),
-                    branch("List.nil", [], call("entryLine", var("entry"))),
-                    branch("List.cons", ["next", "more"], join(strings(call("entryLine", var("entry")), call("entryLines", var("rest"))), ","))))),
-        recursive="entries"),
-    definition("snapshotPreimage", [("project", named("Project")), ("parent", STRING)], STRING,
-        preimage_body(var("project"), var("parent"))),
 
-    # ---- restore: the stored bytes must re-derive to the address they were stored under
-    definition("restoreDecision", [("derived", STRING), ("expected", STRING)], named("Decision"),
-        if_(equal(var("derived"), var("expected")), ctor("Decision.Accept"), ctor("Decision.Refuse"))),
+BS = chr(92)
+NL = "\n"
 
-    # ---- capabilities: admitted only when listed; nothing listed, nothing admitted
-    definition("grantEndpoint", [("grant", named("Grant"))], STRING, owned(project("endpoint", var("grant")))),
-    definition("admits", [("endpoints", lst(named("Grant"))), ("origin", STRING)], BOOL,
-        match(var("endpoints"),
-            branch("List.nil", [], b(False)),
-            branch("List.cons", ["grant", "rest"],
-                if_(equal(call("grantEndpoint", var("grant")), var("origin")), b(True), call("admits", var("rest"), var("origin"))))),
-        recursive="endpoints"),
-    definition("networkDecision", [("capabilities", named("Capabilities")), ("origin", STRING)], named("Decision"),
-        if_(call("admits", project("endpoints", var("capabilities")), var("origin")), ctor("Decision.Accept"), ctor("Decision.Refuse"))),
 
-    # ---- versions: a branch is a name pointing at an address; the first ref for a branch is its head
-    structure("Ref", branch=STRING, kappa=STRING),
-    definition("refBranch", [("ref", named("Ref"))], STRING, owned(project("branch", var("ref")))),
-    definition("refKappa", [("ref", named("Ref"))], STRING, owned(project("kappa", var("ref")))),
-    definition("headOf", [("refs", lst(named("Ref"))), ("branch", STRING)], opt(STRING),
-        match(var("refs"),
-            branch("List.nil", [], ctor("Option.none", targs=[STRING])),
-            branch("List.cons", ["ref", "rest"],
-                if_(equal(call("refBranch", var("ref")), var("branch")), ctor("Option.some", call("refKappa", var("ref")), targs=[STRING]), call("headOf", var("rest"), var("branch"))))),
-        recursive="refs"),
-    # ---- preview: a project state is served under its own address on the page origin
-    definition("previewPath", [("kappa", STRING)], STRING, join(strings(s("/p/"), var("kappa"), s("/")))),
+def document(name, imports, decls):
+    head = BS + "begin{lexlean}{" + name + "}" + NL
+    head += BS + "useglossary{lexlean.std.bool@1.1.0}" + NL + BS + "useglossary{lexlean.std.nat@1.1.0}" + NL
+    for i in imports:
+        head += BS + "importmodule{" + i + "}" + NL
+    head += BS + "title{Boolean}" + NL + BS + "begin{semanticmodule}" + NL + BS + "semanticdata{"
+    body = json.dumps({"declarations": decls, "spec": "lexlean/semantic-module/1"}, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+    return head + body + "}" + NL + BS + "end{semanticmodule}" + NL + BS + "end{lexlean}" + NL
 
-    # ---- the words
-    definition("view", [], named("View"), record("View",
-        headline=s("Own Your Ideas"),
-        lede=s("Describe it. It builds, runs and stays yours, in this browser, on no server."),
-        promptPlaceholder=s("What do you want to build?"),
-        sendLabel=s("Build"),
-        buildingLabel=s("building in your browser"),
-        previewLabel=s("Preview"),
-        snapshotLabel=s("Sealed"),
-        rollbackLabel=s("Go back"),
-        refusedLabel=s("Refused: not what it claims to be"),
-        offlineLabel=s("offline, working from your device"))),
 
-    # ---- theorems: the shape of the rules, by unfolding; bytes are pinned by the corpus
-    theorem("view_headline", eq(project("headline", call("view")), s("Own Your Ideas"))),
-    theorem("admits_nothing_without_grants", eq(call("admits", nil(named("Grant")), s("https://example.com")), b(False))),
-    theorem("refuses_without_grants",
-        eq(call("networkDecision", record("Capabilities", endpoints=nil(named("Grant"))), s("https://example.com")), ctor("Decision.Refuse"))),
-    theorem("no_head_without_refs", eq(call("headOf", nil(named("Ref")), s("main")), ctor("Option.none", targs=[STRING]))),
-    theorem("preview_path_shape", eq(call("previewPath", s("k")), join(strings(s("/p/"), s("k"), s("/"))))),
-    theorem("empty_project_preimage",
-        eq(call("snapshotPreimage", record("Project", label=s("a"), entries=nil(named("Entry"))), s("")),
-           join(strings(s('{"entries":['), call("entryLines", nil(named("Entry"))), s('],"name":'), q(call("projectName", record("Project", label=s("a"), entries=nil(named("Entry"))))), s(',"parent":'), q(s("")), s("}"))))),
-]
-
-module = {"declarations": decls, "spec": "lexlean/semantic-module/1"}
-text = ("\\begin{lexlean}{Dyad}\n"
-        "\\useglossary{lexlean.std.bool@1.1.0}\n"
-        "\\useglossary{lexlean.std.nat@1.1.0}\n"
-        "\\title{Boolean}\n"
-        "\\begin{semanticmodule}\n"
-        "\\semanticdata{" + json.dumps(module, separators=(",", ":"), sort_keys=True, ensure_ascii=False) + "}\n"
-        "\\end{semanticmodule}\n"
-        "\\end{lexlean}\n")
-out = pathlib.Path(__file__).resolve().parent.parent / "src" / "Dyad.lex.tex"
-out.parent.mkdir(parents=True, exist_ok=True)
-out.write_text(text, encoding="utf-8", newline="\n")
-roots = sorted("Dyad." + d["name"] for d in decls if d["kind"] == "definition")
-(out.parent.parent / "model").mkdir(exist_ok=True)
-(out.parent.parent / "model" / "roots.txt").write_text("\n".join(roots) + "\n", encoding="utf-8", newline="\n")
-print(f"wrote {out} ({len(text)} bytes, {len(decls)} declarations, {len(roots)} roots)")
+(ROOT / "src").mkdir(exist_ok=True)
+(ROOT / "model").mkdir(exist_ok=True)
+roots = []
+DEPENDENCY_ORDER = ["Workspace", "Inference", "Object", "Dyad"]
+for name in DEPENDENCY_ORDER:
+    decls = modules[name]
+    imports = set()
+    qualify(decls, name, imports)
+    imports = [m for m in DEPENDENCY_ORDER if m in imports]
+    text = document(name, imports, decls)
+    (ROOT / "src" / (name + ".lex.tex")).write_text(text, encoding="utf-8", newline="\n")
+    roots += [name + "." + d["name"] for d in decls if d["kind"] == "definition"]
+    counts = {k: sum(1 for d in decls if d["kind"] == k) for k in ("structure", "inductive", "definition", "theorem")}
+    print(f"wrote src/{name}.lex.tex ({len(text)} bytes; imports {imports or 'none'}; {counts})")
+roots.sort()
+(ROOT / "model" / "roots.txt").write_text("\n".join(roots) + "\n", encoding="utf-8", newline="\n")
+print(f"wrote model/roots.txt ({len(roots)} roots); View has {len(fields)} fields")

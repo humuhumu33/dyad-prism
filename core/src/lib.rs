@@ -8,6 +8,7 @@
 //! this file, which only names the refusal type the generated code returns.
 //! The generated code uses owned strings and vectors, so this crate links std.
 
+#![recursion_limit = "256"]
 #![deny(unsafe_code)]
 #![allow(non_snake_case, unused_parens, unused_variables, clippy::all, clippy::pedantic)]
 

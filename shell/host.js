@@ -8,6 +8,8 @@
 // The chat stream is the next slice.
 
 import { buildSystemPrompt } from "./prompts.js";
+import * as inference from "./inference.js";
+import { viewReady, lookup, routeOf, refusalWord, seal as sealAnswer, sealPaid, paidGenerate, gpuReady, gpuIds, rememberSession, withEngine, engine, readWho, MODEL_ID } from "./inference.js";
 
 const MARKER = "dyad-ipc-envelope-v1";
 const BASE = new URL("./", import.meta.url); // the shell's directory, wherever it is served
@@ -18,43 +20,13 @@ const handlers = new Map();
 const seen = new Map();
 const emit = (channel, payload) => { const set = listeners.get(channel); if (set) for (const fn of set) { try { fn(payload); } catch (e) { console.error(e); } } };
 
-// ---- the generated core
+// ---- the generated core, the addresses and the store come from the shared inference module: one
+// core.wasm, one BLAKE3, one database ("dyad-prism" v2) for the builder's records and the seals.
 const enc = new TextEncoder(), dec = new TextDecoder();
 let core = null;
-const coreReady = (async () => {
-  const bytes = await (await fetch(new URL("core.wasm", BASE))).arrayBuffer();
-  const { instance } = await WebAssembly.instantiate(bytes, {});
-  const { memory, holo_alloc, holo_free, holo_run } = instance.exports;
-  return {
-    run(op) {
-      const input = enc.encode(JSON.stringify(op));
-      const ptr = holo_alloc(input.length);
-      new Uint8Array(memory.buffer, ptr, input.length).set(input);
-      const packed = holo_run(ptr, input.length);
-      const outPtr = Number(packed >> 32n), outLen = Number(packed & 0xffffffffn);
-      const text = dec.decode(new Uint8Array(memory.buffer, outPtr, outLen));
-      holo_free(outPtr, outLen);
-      const value = JSON.parse(text);
-      if (value.error) throw new Error(value.error);
-      return value;
-    },
-  };
-})().then((c) => (core = c));
-
-// ---- addresses: BLAKE3 as hologram-live spells them, "blake3:" + 64 hex
-let blake3 = null;
-const kappaReady = import("https://esm.sh/@noble/hashes@1.7.1/blake3").then((m) => (blake3 = m.blake3));
-const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
-async function kappa(bytes) { await kappaReady; return "blake3:" + hex(blake3(bytes)); }
-
-// ---- the store
-const DB = "dyad-prism";
-const STORES = ["settings", "apps", "chats", "files", "objects", "refs", "versions", "audit"];
-const dbReady = new Promise((res, rej) => {
-  const r = indexedDB.open(DB, 1);
-  r.onupgradeneeded = () => { for (const s of STORES) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s); };
-  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-});
+const coreReady = inference.coreReady().then((c) => (core = c));
+const kappa = inference.kappa;
+const dbReady = inference.db();
 async function tx(store, mode, fn) { const db = await dbReady; return new Promise((res, rej) => { const t = db.transaction(store, mode); const q = fn(t.objectStore(store)); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 const get = (store, key) => tx(store, "readonly", (s) => s.get(key));
 const put = (store, key, value) => tx(store, "readwrite", (s) => s.put(value, key));
@@ -98,9 +70,11 @@ const OPENROUTER_MODELS = [
   { apiName: "qwen/qwen3.8-flash", displayName: "Qwen 3.8 Flash", contextWindow: 256000 },
   { apiName: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", contextWindow: 256000 },
 ];
-handlers.set("get-language-model-providers", () => [OPENROUTER]);
-handlers.set("get-language-models", ({ providerId }) => (providerId === "openrouter" ? OPENROUTER_MODELS : []));
-handlers.set("get-language-models-by-providers", () => ({ openrouter: OPENROUTER_MODELS }));
+const LOCAL = { id: "local", name: "On your device", type: "local", hasFreeTier: true };
+const LOCAL_MODELS = [{ apiName: MODEL_ID, displayName: "BitNet 2B, on your device", description: "Runs on this browser's GPU; every answer is sealed on the device", contextWindow: 4096 }];
+handlers.set("get-language-model-providers", () => [LOCAL, OPENROUTER]);
+handlers.set("get-language-models", ({ providerId }) => (providerId === "openrouter" ? OPENROUTER_MODELS : providerId === "local" ? LOCAL_MODELS : []));
+handlers.set("get-language-models-by-providers", () => ({ openrouter: OPENROUTER_MODELS, local: LOCAL_MODELS }));
 handlers.set("validate-provider-api-key", async ({ provider, apiKey }) => {
   if (provider !== "openrouter") return { ok: true };
   const r = await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { authorization: "Bearer " + apiKey } });
@@ -429,8 +403,10 @@ async function chatTurn(chatId, intent) {
   const appId = chat.appId;
   const ref = intent.invocationRef;
   const settings = (await get("settings", "user")) || DEFAULT_SETTINGS;
-  const key = settings.providerSettings && settings.providerSettings.openrouter && settings.providerSettings.openrouter.apiKey && settings.providerSettings.openrouter.apiKey.value;
-  const model = (chat.modelSelection && chat.modelSelection.provider === "openrouter" && chat.modelSelection.name) || (settings.selectedModel && settings.selectedModel.provider === "openrouter" && settings.selectedModel.name) || "openrouter/free";
+  const V = await viewReady();
+  const chosen = (chat.modelSelection && chat.modelSelection.provider ? chat.modelSelection : settings.selectedModel) || {};
+  const paid = chosen.provider === "openrouter" && chosen.name;
+  const model = paid ? "openrouter/" + chosen.name.replace(/^openrouter\//, "") : MODEL_ID;
   // T2: the user message, accepted
   const messages = await messagesOf(chatId);
   const userId = messages.length ? Math.max(...messages.map((x) => x.id)) + 1 : 1;
@@ -446,8 +422,8 @@ async function chatTurn(chatId, intent) {
   emit("chat:response:chunk", { chatId, invocationRef: ref, messages });
   let full = "", lastSent = "", updatedFiles = false, summary, error = null;
   const abort = new AbortController(); m.abort = abort;
+  let provenance = null;
   try {
-    if (!key) throw new Error("No OpenRouter key. Add your own key under Settings, it stays in this browser.");
     const app = await get("apps", appId);
     const rules = await get("files", appId + ":AI_RULES.md");
     const history = messages.slice(0, -2).filter((x) => x.content).map((x) => ({ role: x.role, content: x.content }));
@@ -458,14 +434,39 @@ async function chatTurn(chatId, intent) {
       ...history,
       { role: "user", content: intent.prompt },
     ];
+    // The route table decides who answers: a sealed answer to the same request is served without
+    // running anything; the device runs the Q engine; a paid model answers with the visitor's key;
+    // NoKey, NoGpu and PaidOffline are answered with the View's words.
+    const body = { model, messages: request, max_tokens: 2048, temperature: "0.7" };
+    const hit = await lookup(body);
+    const route = await routeOf(hit, body);
+    const word = await refusalWord(route);
+    if (word) throw new Error(word);
     let lastSave = 0;
-    for await (const delta of streamOpenRouter({ key, model, messages: request, signal: abort.signal })) {
-      full += delta;
+    const onText = async (t) => {
+      full = t;
       let lcp = 0; while (lcp < lastSent.length && lcp < full.length && lastSent[lcp] === full[lcp]) lcp++;
       if (lcp < lastSent.length) { messages[messages.length - 1].content = full; emit("chat:response:chunk", { chatId, invocationRef: ref, messages }); }
       else emit("chat:response:chunk", { chatId, invocationRef: ref, streamingMessageId: asstId, streamingPatch: { offset: lcp, content: full.slice(lcp), ...(lcp > 0 ? { prefixHash: djb2(full.slice(0, lcp)) } : {}) } });
       lastSent = full;
       if (Date.now() - lastSave > 150) { messages[messages.length - 1].content = full; await saveMessages(chatId, messages); lastSave = Date.now(); }
+    };
+    if (route === "Serve") {
+      await onText(hit.text);
+      provenance = { receipt: hit.receipt, served: true, fingerprint: hit.fingerprint };
+    } else if (route === "Paid") {
+      const { text, rec } = await paidGenerate(body, (t) => { onText(t); }, abort.signal);
+      await onText(text);
+      provenance = { receipt: await sealPaid(body, rec, hit.key), fingerprint: `${rec.model};${rec.provider || ""}`, cost: rec.cost };
+    } else {
+      const inst = await gpuReady();
+      const { ids } = gpuIds(inst, request);
+      const res = await withEngine(() => inst.generate(ids, { maxNew: body.max_tokens, onToken: ({ text }) => { if (!abort.signal.aborted) onText(text); } }));
+      const text = (res.text || "").trim();
+      rememberSession(request, res, text);
+      await onText(text);
+      const rec = await inst.buildReceipt({ promptText: intent.prompt, ctxIds: [], turnIds: ids, outIds: res.outIds });
+      provenance = { receipt: await sealAnswer(body, rec, hit.key), fingerprint: `${(rec.body["prov:used"] || {})["holo:model"]}` };
     }
     // T6: what the model wrote becomes the project, sealed as a version
     const sm = full.match(/<dyad-chat-summary>([\s\S]*?)<\/dyad-chat-summary>/); summary = sm ? sm[1].trim() : undefined;
@@ -475,7 +476,7 @@ async function chatTurn(chatId, intent) {
     updatedFiles = changed > 0;
     let commit = null;
     if (updatedFiles) commit = await seal(appId, summary || `${changed} file(s) changed`);
-    messages[messages.length - 1] = { ...messages[messages.length - 1], content: full, commitHash: commit, approvalState: "approved" };
+    messages[messages.length - 1] = { ...messages[messages.length - 1], content: full, commitHash: commit, approvalState: "approved", requestId: provenance && provenance.receipt || null };
     await saveMessages(chatId, messages);
     emit("chat:response:chunk", { chatId, invocationRef: ref, messages });
   } catch (e) {
@@ -486,7 +487,7 @@ async function chatTurn(chatId, intent) {
   }
   m.abort = null;
   const outcome = abort.signal.aborted ? "cancelled" : error ? "errored" : "completed";
-  const completion = { intentId: intent.intentId, invocationRef: ref, outcome, updatedFiles, suppressAutoReview: true, targetAppId: appId, ...(summary ? { chatSummary: summary } : {}), ...(error ? { error } : {}) };
+  const completion = { intentId: intent.intentId, invocationRef: ref, outcome, updatedFiles, suppressAutoReview: true, targetAppId: appId, ...(summary ? { chatSummary: summary } : {}), ...(error ? { error } : {}), ...(provenance && provenance.receipt ? { warningMessages: [(provenance.served ? V.servedLabel : V.sealedLabel) + " · " + provenance.receipt.replace(/^blake3:/, "").slice(0, 12) + "…"] } : {}) };
   publishChat(chatId, { phase: "finalizing", error, lastCompletion: completion });
   publishChat(chatId, { phase: outcome === "errored" ? "errored" : "idle", invocationRef: null, queuePaused: false, queuePauseReason: null });
   emit("chat:stream:end", { chatId });
@@ -544,5 +545,20 @@ window.electron = {
     removeAllListeners: (channel) => { listeners.delete(channel); },
   },
 };
+// The landing page keeps the visitor's first prompt; on arrival the builder creates the app from
+// the scaffold, opens its chat and runs the turn, so the visitor lands in Dyad's UI mid build.
+(async () => {
+  let first = null;
+  try { first = JSON.parse(sessionStorage.getItem("holo.first-prompt.v1") || "null"); sessionStorage.removeItem("holo.first-prompt.v1"); } catch (e) {}
+  if (!first || !first.prompt) return;
+  const name = ("app-" + first.prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).slice(0, 40) || "app";
+  const created = await handlers.get("create-app")({ name });
+  const intent = { intentId: "first-" + Date.now(), chatId: created.chatId, invocationRef: { kind: "chat-stream", entityKey: created.chatId, operationId: "first-" + Date.now() }, prompt: first.prompt, redo: false, selectedComponents: [], requestedChatMode: "build" };
+  publishChat(created.chatId, { phase: "admitting", invocationRef: intent.invocationRef, error: null });
+  chatTurn(created.chatId, intent).catch((e) => console.error("[host] first turn", e));
+  const base = new URL(document.baseURI).pathname;
+  history.replaceState(null, "", base + "chat?id=" + created.chatId + "&appId=" + created.app.id);
+  dispatchEvent(new PopStateEvent("popstate"));
+})();
 window.__host = { handlers, emit, seen, get, put, all, kappa, core: () => core, coreReady, view: () => coreReady.then((c) => c.run({ op: "view" })) };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("sw.js", BASE)).catch(() => {});

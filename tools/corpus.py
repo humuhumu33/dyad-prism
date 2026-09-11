@@ -69,5 +69,7 @@ case("no such branch", "h4", [], refs=(("main", K1),), branch="draft")
 out = root / "model" / "corpus.json"
 out.write_text(json.dumps(cases, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 print(f"wrote {out}: {len(cases)} cases")
-run = subprocess.run(["cargo", "test", "--release", "-q", "--test", "corpus", "--", "--nocapture"], cwd=root / "core")
+inference = subprocess.run([sys.executable, str(root / "tools" / "corpus_inference.py")], cwd=root)
+if inference.returncode: sys.exit(inference.returncode)
+run = subprocess.run(["cargo", "test", "--release", "-q", "--", "--nocapture"], cwd=root / "core")
 sys.exit(run.returncode)

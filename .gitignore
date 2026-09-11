@@ -8,3 +8,6 @@ shell/app/
 vendor/dyad/node_modules/
 shell/scaffold/
 shell/404.html
+shell/sw.js
+shell/manifest.json
+shell/v1/
