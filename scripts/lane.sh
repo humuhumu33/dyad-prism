@@ -57,31 +57,43 @@ echo "attestation: $ROOT/.lexlean/verified/$ATTESTATION_ID/attestation.json"
 WS="$WORK/export-ws"
 rm -rf "$WS"; mkdir -p "$WS/lean4-prod"
 tar xf "$WORK/PrismPM/vendor/lean4-prod/lean.tar" -C "$WS/lean4-prod"
+# Every module the project declares (lexlean.toml entrypoints, one module per file, in that order):
+# copied beside lean4-prod, built and replayed by leanchecker, and exported together.
+MODULES=$(grep -o '"src/[A-Za-z0-9_]*\.lex\.tex"' "$ROOT/lexlean.toml" | sed 's#"src/##; s#\.lex\.tex"##')
+[ -n "$MODULES" ] || { echo "lexlean.toml lists no entrypoints" >&2; exit 1; }
 mkdir -p "$WS/PrismDyad"
-cp "$ROOT/.lexlean/build/$BUILD_ID/modules/PrismDyad/Dyad.lean" "$WS/PrismDyad/"
-cat > "$WS/lakefile.toml" <<'EOF'
+LAKE_ROOTS=""; CHECK=""; EXPORT_MODULES=""
+for m in $MODULES; do
+  cp "$ROOT/.lexlean/build/$BUILD_ID/modules/PrismDyad/$m.lean" "$WS/PrismDyad/"
+  LAKE_ROOTS="$LAKE_ROOTS${LAKE_ROOTS:+, }\"PrismDyad.$m\""
+  CHECK="$CHECK PrismDyad.$m"
+  EXPORT_MODULES="$EXPORT_MODULES --module PrismDyad.$m"
+done
+cat > "$WS/lakefile.toml" <<EOF
 name = "dyad_verify"
 version = "0.1.0"
 
 [[lean_lib]]
 name = "PrismGenerated"
-roots = ["PrismDyad.Dyad"]
+roots = [$LAKE_ROOTS]
 EOF
 printf 'leanprover/lean4:v4.32.1\n' > "$WS/lean-toolchain"
 cd "$WS"
 lake build PrismGenerated
-lake env leanchecker PrismDyad.Dyad
+# shellcheck disable=SC2086
+lake env leanchecker $CHECK
 cd "$WS/lean4-prod"
 lake build prod-export
 export LEAN_PATH="$WS/.lake/build/lib/lean"
+# model/roots.txt names every definition root as Module.name, strictly sorted, as the exporter demands.
 ROOTS=""
 for r in $(tr '\n' ' ' < "$ROOT/model/roots.txt"); do
-  ROOTS="$ROOTS --root PrismDyad.Dyad.$r"
+  ROOTS="$ROOTS --root PrismDyad.$r"
 done
 # shellcheck disable=SC2086
-lake exe prod-export --module PrismDyad.Dyad $ROOTS --ir-module PrismDyad --out "$WS/export-a"
+lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module PrismDyad --out "$WS/export-a"
 # shellcheck disable=SC2086
-lake exe prod-export --module PrismDyad.Dyad $ROOTS --ir-module PrismDyad --out "$WS/export-b"
+lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module PrismDyad --out "$WS/export-b"
 cmp "$WS/export-a/kernel.ir" "$WS/export-b/kernel.ir"
 cmp "$WS/export-a/roots.json" "$WS/export-b/roots.json"
 cmp "$WS/export-a/coverage.json" "$WS/export-b/coverage.json"

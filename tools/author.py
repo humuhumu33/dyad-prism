@@ -188,7 +188,7 @@ text = ("\\begin{lexlean}{Dyad}\n"
 out = pathlib.Path(__file__).resolve().parent.parent / "src" / "Dyad.lex.tex"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(text, encoding="utf-8", newline="\n")
-roots = sorted(d["name"] for d in decls if d["kind"] == "definition")
+roots = sorted("Dyad." + d["name"] for d in decls if d["kind"] == "definition")
 (out.parent.parent / "model").mkdir(exist_ok=True)
 (out.parent.parent / "model" / "roots.txt").write_text("\n".join(roots) + "\n", encoding="utf-8", newline="\n")
 print(f"wrote {out} ({len(text)} bytes, {len(decls)} declarations, {len(roots)} roots)")
