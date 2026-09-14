@@ -14,7 +14,7 @@
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/BTCN3lop.js">
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/DorkWGXo.js">
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/CkU4LJ6i.js">
-		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/entry/app.Dhuw3q4X.js">
+		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/entry/app.DSBr_OKj.js">
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/Dp1pzeXC.js">
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/D7qLwCLP.js">
 		<link rel="modulepreload" href="/dyad-prism/ui/_app/immutable/chunks/Bhfv-FYJ.js">
@@ -32,7 +32,7 @@
 		let theme = JSON.parse(localStorage.getItem('hollama-settings'))?.userTheme;
 		if (theme) document.documentElement.setAttribute('data-color-theme', theme);
 		else {
-			theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			theme = 'dark';
 			document.documentElement.setAttribute('data-color-theme', theme);
 		}
 	</script>
@@ -53,7 +53,7 @@
 
 						Promise.all([
 							import("/dyad-prism/ui/_app/immutable/entry/start.DIaKJc7m.js"),
-							import("/dyad-prism/ui/_app/immutable/entry/app.Dhuw3q4X.js")
+							import("/dyad-prism/ui/_app/immutable/entry/app.DSBr_OKj.js")
 						]).then(([kit, app]) => {
 							kit.start(app, element);
 						});

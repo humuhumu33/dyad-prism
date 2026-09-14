@@ -1,5 +1,5 @@
 diff --git a/src/app.html b/src/app.html
-index 8ab0372..fa888d0 100644
+index 8ab0372..3057829 100644
 --- a/src/app.html
 +++ b/src/app.html
 @@ -2,11 +2,10 @@
@@ -17,6 +17,15 @@ index 8ab0372..fa888d0 100644
  		%sveltekit.head%
  	</head>
  	<script>
+@@ -15,7 +14,7 @@
+ 		let theme = JSON.parse(localStorage.getItem('hollama-settings'))?.userTheme;
+ 		if (theme) document.documentElement.setAttribute('data-color-theme', theme);
+ 		else {
+-			theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
++			theme = 'dark';
+ 			document.documentElement.setAttribute('data-color-theme', theme);
+ 		}
+ 	</script>
 diff --git a/src/lib/components/ButtonDelete.svelte b/src/lib/components/ButtonDelete.svelte
 index 7c7e25b..c3a374b 100644
 --- a/src/lib/components/ButtonDelete.svelte
@@ -159,6 +168,19 @@ index 3912652..14ac2a2 100644
 -export const GITHUB_RELEASES_URL = 'https://github.com/fmaclen/hollama/releases';
 +export const GITHUB_RELEASES_API = 'https://api.github.com/repos/humuhumu33/dyad-prism/releases';
 +export const GITHUB_RELEASES_URL = 'https://github.com/humuhumu33/dyad-prism/releases';
+diff --git a/src/lib/settings.ts b/src/lib/settings.ts
+index 9e9a367..1a5461b 100644
+--- a/src/lib/settings.ts
++++ b/src/lib/settings.ts
+@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
+ 	lastUsedModels: [],
+ 	lastUpdateCheck: null,
+ 	autoCheckForUpdates: false,
+-	userTheme: 'light',
++	userTheme: 'dark',
+ 	userLanguage: null,
+ 	sidebarExpanded: true,
+ 	hollamaMetadata: {
 diff --git a/src/lib/updates.ts b/src/lib/updates.ts
 index 30e7414..86a3663 100644
 --- a/src/lib/updates.ts
@@ -179,6 +201,21 @@ index 30e7414..86a3663 100644
  const ONE_WEEK_IN_SECONDS = 604800;
  
  export interface UpdateStatus {
+diff --git a/src/routes/+layout.svelte b/src/routes/+layout.svelte
+index 76771b4..9ef6147 100644
+--- a/src/routes/+layout.svelte
++++ b/src/routes/+layout.svelte
+@@ -105,9 +105,7 @@
+ 
+ 		// Color theme
+ 		if (browser && !$settingsStore.userTheme) {
+-			$settingsStore.userTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+-				? 'dark'
+-				: 'light';
++			$settingsStore.userTheme = 'dark';
+ 		}
+ 	});
+ </script>
 diff --git a/src/routes/+page.svelte b/src/routes/+page.svelte
 index a3b1a6e..963a0cd 100644
 --- a/src/routes/+page.svelte

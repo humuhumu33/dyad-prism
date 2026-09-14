@@ -18,6 +18,7 @@ Brand, in the sense of what a visitor sees:
 - `src/lib/github.ts`, `src/routes/settings/Version.svelte`: the release and update links, so the
   version screen never names another product.
 - `tailwind.config.js`: the font families, Geist and Geist Mono.
+- `src/app.html`, `src/routes/+layout.svelte`, `src/lib/settings.ts`: dark is the default for a visitor who has not chosen (the kit's primary mode); Hollama followed the system. The toggle still works and is remembered.
 
 The subpath, because Hollama writes its routes as absolute paths and SvelteKit's `paths.base` does not
 reach them: `${base}` in front of every `goto`, `href` and pathname check (twelve occurrences in six
