@@ -129,6 +129,9 @@ self.addEventListener("fetch", (event) => {
       return;
     }
     if (event.request.method !== "GET") return;
+    // The renderer's files under assets/ keep fixed names outside the closure: always revalidated
+    // with the origin (a conditional request, 304 when unchanged), never served stale from the HTTP cache.
+    if (path.startsWith("assets/")) { event.respondWith(fetch(event.request, { cache: "no-cache" }).catch(() => caches.match(event.request))); return; }
     event.respondWith((async () => {
       const hit = await caches.match(event.request, { ignoreSearch: true });
       if (hit) return hit;
