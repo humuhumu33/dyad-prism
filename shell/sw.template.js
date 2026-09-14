@@ -55,7 +55,9 @@ self.addEventListener("activate", (event) => {
 const ENDPOINT = new Set(["v1/chat/completions", "v1/models"]);
 async function serveFromPage(request, path) {
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  const page = clients.find((c) => c.url.startsWith(self.registration.scope) && !/^(p|holo|ui)\//.test(new URL(c.url).pathname.slice(BASE.length)));
+  // Any page of the shell can hold the engine; the homepage answers when one is open, the chat app when it is alone.
+  const shell = clients.filter((c) => c.url.startsWith(self.registration.scope) && !/^(p|holo)\//.test(new URL(c.url).pathname.slice(BASE.length)));
+  const page = shell.find((c) => !/^ui\//.test(new URL(c.url).pathname.slice(BASE.length))) || shell[0];
   if (!page) return new Response(JSON.stringify({ error: { message: "open the page and leave it open", type: "server_error" } }), { status: 503, headers: { "content-type": "application/json" } });
   const body = request.method === "POST" ? await request.text() : "";
   const channel = new MessageChannel();

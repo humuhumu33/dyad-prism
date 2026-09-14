@@ -21,6 +21,14 @@ Brand, in the sense of what a visitor sees:
 - `src/app.html`, `src/routes/+layout.svelte`, `src/lib/settings.ts`: dark is the default for a visitor who has not chosen (the kit's primary mode); Hollama followed the system. The toggle still works and is remembered.
 - `src/lib/components/CollapsibleSidebar.svelte`: the Motd link (Hollama's message of the day, its own release notes) is removed from the sidebar; the route still exists, unlinked.
 
+Arriving ready, because a demo that opens on a settings screen is not one:
+
+- `src/app.html`: one module script tag for `ui-host.js`, ours (see below).
+- `src/routes/+page.svelte`: the entry goes to a new session rather than the session list, so the
+  visitor lands in a chat. With no verified connection it still goes to the settings screen.
+- `src/routes/sessions/[id]/+page.svelte`: a session with no model of its own takes the first model
+  the connection offers, so the picker is filled in rather than empty.
+
 The subpath, because Hollama writes its routes as absolute paths and SvelteKit's `paths.base` does not
 reach them: `${base}` in front of every `goto`, `href` and pathname check (twelve occurrences in six
 files, plus `src/lib/components/ButtonNew.ts` and the leave check in `src/routes/sessions/[id]/+page.svelte`),
@@ -42,6 +50,15 @@ converted to the HSL triplets Hollama's Tailwind config consumes, the kit's alph
 over the kit's background first. Hollama's positive, warning and the muted tints have no token in the
 kit and keep Hollama's values. It also places the kit's six web fonts with their OFL file and the mark.
 
+## Ours, beside the build: `scripts/ui-host.js`
+
+The chat app loads it as one module script and knows nothing about it. It seeds the connection once
+(this origin's own endpoint, no key, the model filter `webgpu:` so the picker offers what this page
+answers from itself), registers the shell's service worker (a visitor who arrives before it is
+installed is controlled after one reload, and only that first install reloads), starts the engine so
+the model is loading before the visitor types, and shows the first download as a card at the top of
+the page. It names no colour: the card uses the kit's variables, which the page already defines.
+
 ## Terms
 
 Hollama: MIT, Copyright (c) Fernando Maclen; the notice travels with the build. The kit's CSS: MPL-2.0
@@ -52,7 +69,8 @@ name Hologram are Hologram Technologies' own.
 ## Serving
 
 The worker on this origin (`shell/sw.template.js`) leaves pages under `ui/` out of its reload on a new
-closure and out of its search for the page that answers the endpoint, and serves every navigation under
+closure, prefers the homepage when one is open and otherwise lets a chat page answer the endpoint
+itself, so one tab is enough, and serves every navigation under
 `ui/` from `ui/index.html`, so deep links and refreshes work on Pages, which has no rewrite rule. The
 build's files are in the shell closure like any other and are precached at install, so the app opens
 with the network off after one visit.

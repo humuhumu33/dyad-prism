@@ -1,8 +1,8 @@
 diff --git a/src/app.html b/src/app.html
-index 8ab0372..3057829 100644
+index 8ab0372..de169f0 100644
 --- a/src/app.html
 +++ b/src/app.html
-@@ -2,11 +2,10 @@
+@@ -2,11 +2,11 @@
  <html lang="en">
  	<head>
  		<meta charset="utf-8" />
@@ -14,10 +14,11 @@ index 8ab0372..3057829 100644
  		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 -		<title>Hollama</title>
 +		<title>Hologram</title>
++		<script type="module" src="%sveltekit.assets%/ui-host.js"></script>
  		%sveltekit.head%
  	</head>
  	<script>
-@@ -15,7 +14,7 @@
+@@ -15,7 +15,7 @@
  		let theme = JSON.parse(localStorage.getItem('hollama-settings'))?.userTheme;
  		if (theme) document.documentElement.setAttribute('data-color-theme', theme);
  		else {
@@ -227,20 +228,22 @@ index 76771b4..9ef6147 100644
  	});
  </script>
 diff --git a/src/routes/+page.svelte b/src/routes/+page.svelte
-index a3b1a6e..963a0cd 100644
+index a3b1a6e..99823f0 100644
 --- a/src/routes/+page.svelte
 +++ b/src/routes/+page.svelte
-@@ -1,14 +1,15 @@
+@@ -1,14 +1,17 @@
  <script lang="ts">
 +	import { base } from '$app/paths';
  	import { goto } from '$app/navigation';
++	import { generateNewUrl } from '$lib/components/ButtonNew';
  	import { serversStore } from '$lib/localStorage';
++	import { Sitemap } from '$lib/sitemap';
  
  	$effect.pre(() => {
  		// If at least one server is verified, redirect to the sessions page
  		if ($serversStore.some((server) => server.isVerified !== null)) {
 -			goto('/sessions');
-+			goto(`${base}/sessions`);
++			goto(generateNewUrl(Sitemap.SESSIONS));
  		} else {
  			// Otherwise, redirect to the settings page to add or verify servers
 -			goto('/settings');
@@ -291,7 +294,7 @@ index 26d5c41..b8a0904 100644
  				</Button>
  			</p>
 diff --git a/src/routes/sessions/[id]/+page.svelte b/src/routes/sessions/[id]/+page.svelte
-index edeaca8..b6211b6 100644
+index edeaca8..d07ccd2 100644
 --- a/src/routes/sessions/[id]/+page.svelte
 +++ b/src/routes/sessions/[id]/+page.svelte
 @@ -1,4 +1,5 @@
@@ -300,7 +303,18 @@ index edeaca8..b6211b6 100644
  	import { onMount, tick } from 'svelte';
  	import { toast } from 'svelte-sonner';
  
-@@ -88,7 +89,7 @@
+@@ -60,6 +61,10 @@
+ 		session.model = $settingsStore.models.find((m) => m.name === modelName);
+ 	});
+ 
++	$effect(() => {
++		if (!modelName && $settingsStore.models.length) modelName = $settingsStore.models[0].name;
++	});
++
+ 	$effect(() => {
+ 		if (editor.shouldFocusTextarea && editor.promptTextarea) {
+ 			editor.promptTextarea.focus();
+@@ -88,7 +93,7 @@
  		if (
  			editor.prompt &&
  			editor.prompt.trim() !== '' &&
@@ -309,7 +323,7 @@ index edeaca8..b6211b6 100644
  		) {
  			const userConfirmed = confirm($LL.unsavedChangesWillBeLost());
  			if (!userConfirmed) {
-@@ -305,7 +306,7 @@
+@@ -305,7 +310,7 @@
  		{#snippet headline()}
  			<p data-testid="session-id" class="font-bold leading-none">
  				{$LL.session()}
