@@ -4,8 +4,9 @@
 //
 //   1. The connection is seeded once, to the endpoint this origin answers, with no key, so a visitor
 //      never opens the settings screen.
-//   2. The shell's service worker is registered, because it is what answers that endpoint; a visitor
-//      who arrives before it is installed is controlled after one reload.
+//   2. The shell's service worker is what answers that endpoint. A visitor who arrives before it is
+//      there waits for it and reloads once, before anything else starts, because a list of models
+//      asked for uncontrolled comes back empty and a download begun uncontrolled begins again.
 //   3. The engine is started at once, so the model is resident before the first prompt, and the one
 //      long wait, the first download, is shown as a bar. Nothing here names a colour: the bar uses the
 //      brand kit's variables, which the page already defines.
@@ -29,21 +30,29 @@ try {
   }
 } catch (error) {}
 
+const RELOADED = "hologram-ui-reloaded";
 if (!navigator.serviceWorker) throw new Error("this browser has no service worker");
 if (!navigator.serviceWorker.controller) {
   navigator.serviceWorker.register(new URL("sw.js", SHELL).href).catch(() => {});
-  // The worker claims this page as it activates; the reload is what makes the whole page run under it,
-  // the chat app's own requests included. Only this first install reloads: a page reloaded mid chat
-  // would lose what the visitor is reading.
-  navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
-  // Nothing below runs while this is awaited, because a list of models asked for uncontrolled comes
-  // back empty and a download begun uncontrolled would begin again after the reload. A first install
-  // takes as long as it takes to precache the page; when it is done and this page is still not taken
-  // (the worker claims as it activates, which can be after this page asked), the reload is ours.
-  await navigator.serviceWorker.ready;
-  if (!navigator.serviceWorker.controller) location.reload();
+  // Nothing below runs while this page is waiting, because a list of models asked for uncontrolled
+  // comes back empty and a download begun uncontrolled would begin again after the reload. The wait is
+  // for the worker to exist, not to claim: a worker that activated while another page held the old
+  // registration never claims this one, and a fresh navigation under an active worker is controlled
+  // from its first byte. So one reload, once per visit, settles both.
+  const deadline = Date.now() + 20000;
+  while (!navigator.serviceWorker.controller && Date.now() < deadline) {
+    const registration = await navigator.serviceWorker.getRegistration(new URL("sw.js", SHELL).href);
+    if (registration && registration.active) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (!sessionStorage.getItem(RELOADED)) {
+    sessionStorage.setItem(RELOADED, "1");
+    location.reload();
+  }
   await new Promise(() => {});
 }
+
+sessionStorage.removeItem(RELOADED);
 
 const bar = document.createElement("div");
 bar.hidden = true;
