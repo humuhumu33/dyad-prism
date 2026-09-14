@@ -37,9 +37,12 @@ if (!navigator.serviceWorker.controller) {
   // would lose what the visitor is reading.
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
   // Nothing below runs while this is awaited, because a list of models asked for uncontrolled comes
-  // back empty and a download begun uncontrolled would begin again after the reload.
-  await new Promise((resolve) => setTimeout(resolve, 15000));
-  throw new Error("the service worker did not take this page");
+  // back empty and a download begun uncontrolled would begin again after the reload. A first install
+  // takes as long as it takes to precache the page; when it is done and this page is still not taken
+  // (the worker claims as it activates, which can be after this page asked), the reload is ours.
+  await navigator.serviceWorker.ready;
+  if (!navigator.serviceWorker.controller) location.reload();
+  await new Promise(() => {});
 }
 
 const bar = document.createElement("div");
