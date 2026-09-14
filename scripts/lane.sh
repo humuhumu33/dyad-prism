@@ -33,6 +33,11 @@ LX="$WORK/PrismPM/target/release/lexlean"
 #     build whose copy differs from PrismPM's at the pinned commit (tools/prismpm_vendor.sha256).
 python3 "$ROOT/tools/prismpm_vendor.py" "$WORK/PrismPM"
 
+# 0c. The brand: the Hologram brand kit's tokens, vendored at BRAND_KIT_REV, generate every stylesheet
+#     the shell serves. Refuse a build whose vendored kit files, generated stylesheets, copied marks or
+#     fonts drifted, or that names a colour by hand anywhere in the shell.
+python3 "$ROOT/tools/brand_kit.py" --check
+
 # 1. Lean toolchain.
 export PATH="$HOME/.elan/bin:$PATH"
 if ! elan toolchain list 2>/dev/null | grep -q 'leanprover/lean4:v4.32.1'; then

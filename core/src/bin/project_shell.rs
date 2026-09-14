@@ -14,6 +14,12 @@ use dyad_core::{encodeCompletion, encodeError, encodeModels, view, Completion};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+/// The colours the pages and the web manifest name outside a stylesheet, read from the generated
+/// `shell/brand.json` (tools/brand_kit.py, from the kit's tokens); nothing is typed here.
+fn brand() -> serde_json::Value {
+    serde_json::from_str(include_str!("../../../shell/brand.json")).expect("shell/brand.json; run python3 tools/brand_kit.py")
+}
+
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
@@ -35,12 +41,13 @@ fn page() -> String {
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#151312">
+<meta name="theme-color" content="{theme_color}">
 <title>{title}</title>
 <meta name="description" content="{lede}">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
 <link rel="manifest" href="app.webmanifest">
 <link rel="stylesheet" href="assets/index.css">
+<link rel="stylesheet" href="brand.css">
 <link rel="stylesheet" href="appearance.css">
 <script>
 // Pre paint appearance, the same canonical state Hologram OS keeps (holo.theme.v1: palette, immersive,
@@ -81,6 +88,7 @@ fn page() -> String {
 "##,
         title = esc(&v.headline),
         lede = esc(&v.lede),
+        theme_color = brand()["theme_color"].as_str().unwrap_or("").to_owned(),
         appearance = esc(&v.appearanceLabel),
         dark = esc(&v.darkLabel),
         light = esc(&v.lightLabel),
@@ -101,8 +109,8 @@ fn webmanifest() -> String {
         "description": v.lede,
         "start_url": "./",
         "display": "standalone",
-        "background_color": "#151312",
-        "theme_color": "#151312",
+        "background_color": brand()["background_color"],
+        "theme_color": brand()["theme_color"],
         "icons": [{ "src": "mark.svg", "sizes": "any", "type": "image/svg+xml" }]
     })
     .to_string()
@@ -269,14 +277,30 @@ fn holo_page() -> String {
 <title>{title}</title>
 <script>document.write('<base href="' + location.pathname.replace(/holo\/.*$/, "").replace(/[^/]*$/, "") + '">');</script>
 <link rel="icon" href="mark.svg" type="image/svg+xml">
-<link rel="stylesheet" href="shell.css">
-<script>(function () {{ var root = document.documentElement, s = null; try {{ s = JSON.parse(localStorage.getItem("holo.theme.v1") || "null"); }} catch (e) {{}} var palette = s && s.palette === "light" ? "light" : "dark"; root.setAttribute("data-holo-palette", palette); root.setAttribute("data-holo-immersive", "off"); root.style.setProperty("color-scheme", palette); }})();</script>
+<link rel="stylesheet" href="brand.css">
+<style>
+/* Layout only; every colour, font and radius is brand.css's, generated from the kit's tokens. */
+body {{ margin: 0; min-height: 100vh; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }}
+.mark {{ position: fixed; top: 21px; left: 21px; display: inline-flex; padding: 3px; }}
+.mark .on-light {{ display: none; }} .mark .on-dark {{ display: block; }}
+:root.light .mark .on-light {{ display: block; }} :root.light .mark .on-dark {{ display: none; }}
+main {{ max-width: 640px; margin: 0 auto; padding: 96px 24px 64px; }}
+main h1 {{ font-size: 40px; line-height: 1.1; margin: 0 0 12px; }}
+.lede {{ color: var(--muted-foreground); margin: 0 0 24px; }}
+.hint {{ color: var(--muted-foreground); font-size: 14px; }}
+.btn {{ display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: calc(var(--radius) - 2px); background: var(--brand); color: var(--brand-foreground); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; border: 0; }}
+.btn:hover {{ filter: brightness(1.06); }}
+.apps {{ list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 8px; }}
+.apps li {{ display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--card-foreground); }}
+.apps a {{ color: inherit; }}
+</style>
+<script>(function () {{ var root = document.documentElement, s = null; try {{ s = JSON.parse(localStorage.getItem("holo.theme.v1") || "null"); }} catch (e) {{}} var palette = s && s.palette === "light" ? "light" : "dark"; root.setAttribute("data-holo-palette", palette); root.setAttribute("data-holo-immersive", "off"); root.style.setProperty("color-scheme", palette); root.classList.add(palette); }})();</script>
 <script type="application/json" id="view">{view_json}</script>
 </head>
 <body>
 <a class="mark" href="./" aria-label="Hologram"><img class="on-dark" src="lockup-white.svg" alt="Hologram" width="157" height="30"><img class="on-light" src="lockup-black.svg" alt="Hologram" width="157" height="30"></a>
 <main>
-  <h1>{title}</h1>
+  <h1 class="font-display">{title}</h1>
   <p class="lede">{lede}</p>
   <p class="hint mono" id="status"></p>
   <p><label class="btn" for="file" id="pick">{pick}</label><input id="file" type="file" accept=".holo" hidden></p>

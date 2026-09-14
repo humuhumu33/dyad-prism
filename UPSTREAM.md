@@ -30,3 +30,13 @@ Same request as freeinference-prism's `UPSTREAM.md`: the application projection 
 
 A portable View is served by the desktop surface at an origin root; a browser host that serves the same bundle under `holo/<kappa>/` needs the page to learn its base. dyad-prism defines the scaffold's `BASE_URL` from `location.pathname` at load. Request: document (or provide in the intent contract) the base path a portable View may assume, so one bundle serves both surfaces without host specific code.
 
+## hologram-brand-kit bce3bdf59: three roles the tokens lack
+
+dyad-prism generates every stylesheet it serves from `brand/tokens/hologram-tokens.json` (`tools/brand_kit.py`). Three things had to be derived here because the kit has no token for them; each is arithmetic on kit values, never a typed colour, and each would rather be the kit's:
+
+1. **Glass over a photo.** The Immersive look puts the warm dark surfaces on a photograph with alpha (`sidebar`, `card`, `popover`, `muted`, `accent`, `secondary` at 0.6 to 0.94; the main surface transparent). Request: `hologram-dark` alpha variants of those surfaces, measured by the kit's own contrast gate against a reference photo set.
+2. **Success and warning.** Dyad's screens name green and amber for success and warning; the kit has one accent and a destructive red, and PR #1 (success, subtle gray, light blue) is still open. Here every hue but red becomes the warm ramp, so success and warning read as ink with their icons. Request: merge PR #1 and add a warning role.
+3. **A display scale.** The kit's `font.size` stops at 6xl and names no hero size; the home headline here is `5xl` in Archivo with `tracking.display`. Request: a `display` size token pair (48 and 64) with line heights.
+
+A fourth, smaller one: the 14 px floor is a house rule in `brand/showcase/src/styles.css` (`--text-xs: 0.875rem`), not a token; a `font.size.floor` token would let consumers apply it without reading the showcase.
+
