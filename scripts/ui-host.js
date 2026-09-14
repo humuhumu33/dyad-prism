@@ -29,11 +29,17 @@ try {
   }
 } catch (error) {}
 
-if (navigator.serviceWorker) {
-  const controlled = !!navigator.serviceWorker.controller;
+if (!navigator.serviceWorker) throw new Error("this browser has no service worker");
+if (!navigator.serviceWorker.controller) {
   navigator.serviceWorker.register(new URL("sw.js", SHELL).href).catch(() => {});
-  // Only the first install reloads: a page reloaded mid chat would lose what the visitor is reading.
-  if (!controlled) navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
+  // The worker claims this page as it activates; the reload is what makes the whole page run under it,
+  // the chat app's own requests included. Only this first install reloads: a page reloaded mid chat
+  // would lose what the visitor is reading.
+  navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
+  // Nothing below runs while this is awaited, because a list of models asked for uncontrolled comes
+  // back empty and a download begun uncontrolled would begin again after the reload.
+  await new Promise((resolve) => setTimeout(resolve, 15000));
+  throw new Error("the service worker did not take this page");
 }
 
 const bar = document.createElement("div");
