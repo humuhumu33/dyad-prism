@@ -51,6 +51,10 @@ const hologramWords: Plugin = {
     let out = code;
     if (/\bDyad\b/.test(out)) out = out.replace(/\bDyad\b/g, "Hologram");
     if (file.endsWith("/pages/home.tsx")) out = out.replace('className="text-4xl font-semibold tracking-tight text-foreground"', 'className="font-display text-5xl font-semibold text-foreground"');
+    // Three controls the product does without: the setup pill under the home composer (providers are
+    // set up by the host), the Pro selector (Dyad's paid tier), and the voice to text button (Pro).
+    if (file.endsWith("/pages/home.tsx")) out = out.replace(/\{!isSettingsLoading &&\s*!isLoadingLanguageModelProviders &&\s*!hasDyadProApiKey && \(/, "{false && (");
+    if (file.endsWith("/components/ChatInputControls.tsx")) out = out.replace("<ProModeSelector />", "{null}");
     for (const [hex, role] of Object.entries(arbitrary)) out = out.split(`text-[${hex}]`).join(`text-${role}`).split(`bg-[${hex}]`).join(`bg-${role}`).split(`border-[${hex}]`).join(`border-${role}`);
     return out === code ? null : { code: out, map: null };
   },
