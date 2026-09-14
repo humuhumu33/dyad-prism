@@ -64,16 +64,22 @@ index bdbcdd3..2164880 100644
 +	return `${base}/${sitemap}/${id ? id : generateRandomId()}`;
  }
 diff --git a/src/lib/components/CollapsibleSidebar.svelte b/src/lib/components/CollapsibleSidebar.svelte
-index da4375f..402c91d 100644
+index da4375f..5c9235e 100644
 --- a/src/lib/components/CollapsibleSidebar.svelte
 +++ b/src/lib/components/CollapsibleSidebar.svelte
-@@ -1,4 +1,5 @@
+@@ -1,10 +1,10 @@
  <script lang="ts">
 +	import { assets, base } from '$app/paths';
  	import {
  		Brain,
  		Github,
-@@ -45,9 +46,9 @@
+ 		MessageSquareText,
+ 		Moon,
+-		NotebookText,
+ 		Settings2,
+ 		Sun
+ 	} from 'lucide-svelte';
+@@ -45,9 +45,9 @@
  	function setActiveSection(section: SidebarSection) {
  		activeSection = section;
  		if (section === 'sessions') {
@@ -85,7 +91,7 @@ index da4375f..402c91d 100644
  		}
  	}
  </script>
-@@ -66,9 +67,9 @@
+@@ -66,9 +66,9 @@
  			data-testid="sidebar"
  		>
  			<div class="flex items-center justify-between border-b py-4">
@@ -98,25 +104,29 @@ index da4375f..402c91d 100644
  				</a>
  			</div>
  
-@@ -159,7 +160,7 @@
+@@ -159,20 +159,7 @@
  
  			<div class="border-t px-2 py-3">
  				<a
 -					href="/motd"
-+					href="{base}/motd"
- 					class="duration-25 flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors hover:text-active {pathname.includes(
- 						'/motd'
- 					)
-@@ -172,7 +173,7 @@
- 				</a>
- 
- 				<a
+-					class="duration-25 flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors hover:text-active {pathname.includes(
+-						'/motd'
+-					)
+-						? 'text-active'
+-						: 'text-muted'}"
+-					aria-current={pathname.includes('/motd') ? 'page' : undefined}
+-				>
+-					<NotebookText class="h-4 w-4" />
+-					{$LL.motd()}
+-				</a>
+-
+-				<a
 -					href="/settings"
 +					href="{base}/settings"
  					class="duration-25 relative flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors hover:text-active {pathname.includes(
  						'/settings'
  					)
-@@ -187,7 +188,7 @@
+@@ -187,7 +174,7 @@
  				</a>
  
  				<a

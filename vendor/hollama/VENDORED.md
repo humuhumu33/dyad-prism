@@ -19,6 +19,7 @@ Brand, in the sense of what a visitor sees:
   version screen never names another product.
 - `tailwind.config.js`: the font families, Geist and Geist Mono.
 - `src/app.html`, `src/routes/+layout.svelte`, `src/lib/settings.ts`: dark is the default for a visitor who has not chosen (the kit's primary mode); Hollama followed the system. The toggle still works and is remembered.
+- `src/lib/components/CollapsibleSidebar.svelte`: the Motd link (Hollama's message of the day, its own release notes) is removed from the sidebar; the route still exists, unlinked.
 
 The subpath, because Hollama writes its routes as absolute paths and SvelteKit's `paths.base` does not
 reach them: `${base}` in front of every `goto`, `href` and pathname check (twelve occurrences in six
