@@ -809,3 +809,20 @@ window.electron = {
 })();
 window.__host = { handlers, emit, seen, get, put, all, kappa, core: () => core, coreReady, view: () => coreReady.then((c) => c.run({ op: "view" })), publish: () => lastPublish };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("sw.js", BASE)).catch(() => {});
+// One closure per page. A document can be served by a worker that installed an older shell while a
+// newer one is published; then its scripts and the page disagree and a screen breaks for reasons that
+// are not in the code. The worker names its cache after the closure it installed, and the origin serves
+// the closure that is published, so the two are compared here and the page reloads itself once.
+(async () => {
+  const key = "holo.closure.reloaded";
+  try {
+    const names = await caches.keys();
+    const running = (names.find((n) => n.startsWith("shell-")) || "").slice("shell-".length);
+    const published = (await (await fetch(new URL("manifest.json", BASE), { cache: "no-store" })).json()).closure;
+    if (!running || !published || running === published) { sessionStorage.removeItem(key); return; }
+    if (sessionStorage.getItem(key) === published) { console.warn("[host] this page runs shell", running.slice(0, 12), "while", published.slice(0, 12), "is published; the worker could not take over"); return; }
+    sessionStorage.setItem(key, published);
+    console.warn("[host] a newer shell is published; reloading once", running.slice(0, 12), "->", published.slice(0, 12));
+    location.reload();
+  } catch (e) {}
+})();

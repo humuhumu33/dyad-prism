@@ -115,6 +115,12 @@ import hashlib
 manifest_path = root / "shell" / "manifest.json"
 if manifest_path.exists():
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # A listed file the shell does not have is worse than a wrong digest: the worker precaches the whole
+    # list at install, one missing file fails the install, and every page then keeps an older shell with
+    # no sign of why.
+    absent = [f["path"] for f in manifest["files"] if not (root / "shell" / f["path"]).is_file()]
+    if absent:
+        sys.exit(f"shell/manifest.json lists files the shell does not have, so the worker could not install: {absent}")
     bad = [f["path"] for f in manifest["files"] if hashlib.sha256((root / "shell" / f["path"]).read_bytes()).hexdigest() != f["sha256"]]
     if bad:
         sys.exit(f"shell/manifest.json digests differ from hashlib on: {bad}")

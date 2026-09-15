@@ -136,6 +136,10 @@ self.addEventListener("fetch", (event) => {
     // The renderer's files under assets/ keep fixed names outside the closure: always revalidated
     // with the origin (a conditional request, 304 when unchanged), never served stale from the HTTP cache.
     if (path.startsWith("assets/")) { event.respondWith(fetch(event.request, { cache: "no-cache" }).catch(() => caches.match(event.request))); return; }
+    // The hash list is the staleness oracle: the page compares the closure it was projected with
+    // against the one this origin serves now, so it is never answered from a cache while the network
+    // can answer. Offline, the cached copy is the truth.
+    if (path === "manifest.json" || path === "provenance.json") { event.respondWith(fetch(event.request, { cache: "no-store" }).catch(() => caches.match(event.request, { ignoreSearch: true }))); return; }
     event.respondWith((async () => {
       const hit = await caches.match(event.request, { ignoreSearch: true });
       if (hit) return hit;
