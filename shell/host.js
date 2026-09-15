@@ -79,7 +79,9 @@ const OPENROUTER_MODELS = [
 // The device is a provider Dyad counts as set up (a custom provider whose "environment variable" is
 // the GPU), so a machine with WebGPU needs no key before its first prompt.
 const LOCAL = { id: "local", name: "On your device", type: "custom", hasFreeTier: true, envVarName: "HOLOGRAM_DEVICE" };
-const LOCAL_MODELS = [{ apiName: MODEL_ID, displayName: "BitNet 2B, on your device", description: "Runs on this browser's GPU; every answer is sealed on the device", contextWindow: 4096 }];
+// The window is the engine's own (q/core/loader.js: BitNet 2B, ctx 3000), not a round number: a build
+// turn carries the project's files, so the renderer must know what actually fits.
+const LOCAL_MODELS = [{ apiName: MODEL_ID, displayName: "BitNet 2B, on your device", description: "Runs on this browser's GPU; every answer is sealed on the device", contextWindow: 3000 }];
 handlers.set("get-language-model-providers", () => [LOCAL, OPENROUTER]);
 handlers.set("get-language-models", ({ providerId }) => (providerId === "openrouter" ? OPENROUTER_MODELS : providerId === "local" ? LOCAL_MODELS : []));
 handlers.set("get-language-models-by-providers", () => ({ openrouter: OPENROUTER_MODELS, local: LOCAL_MODELS }));
