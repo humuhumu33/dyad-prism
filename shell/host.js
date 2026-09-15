@@ -66,7 +66,20 @@ handlers.set("get-initial-load-telemetry-context", () => ({ isFirstSession: fals
 // The build engine is esbuild in the tab; Dyad asks for Node before it shows a preview, so the
 // answer names the engine that will run: no Node is installed or needed.
 handlers.set("nodejs-status", () => ({ nodeVersion: "browser (esbuild in the tab)", pnpmVersion: "browser", nodeDownloadUrl: "", source: "system", nodePath: null, managedNodeInstalled: false, managedNodeVersion: null, systemNodeTooOld: false, managedNodeSupported: false }));
-handlers.set("window-infrastructure:bootstrap", () => ({ windowSessionId: "web-1", currentQueryInvalidationEpoch: 0, missedInvalidations: [], recoveryScopes: [], mayMigrateLegacyChatTabSession: false, restorableWindowSessionIds: [] }));
+// A window here is a tab, and its session id has to be a UUID: the renderer parses it, and "web-1"
+// was refused, so the window session never initialised and every screen that keys off it -- the
+// version controls among them -- reported itself unavailable. The id lasts as long as the tab, which
+// is what a window session is, so a reload finds the same one.
+const windowSessionId = (() => {
+  let id = null;
+  try { id = sessionStorage.getItem("holo.window.session"); } catch (e) { id = null; }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "")) {
+    id = crypto.randomUUID();
+    try { sessionStorage.setItem("holo.window.session", id); } catch (e) {}
+  }
+  return id;
+})();
+handlers.set("window-infrastructure:bootstrap", () => ({ windowSessionId, currentQueryInvalidationEpoch: 0, missedInvalidations: [], recoveryScopes: [], mayMigrateLegacyChatTabSession: false, restorableWindowSessionIds: [] }));
 for (const c of ["window-infrastructure:set-focused", "window-infrastructure:set-visible-entities", "window-infrastructure:set-chat-tab-ownership", "add-log", "renderer:error-toast-ready", "clear-logs"]) handlers.set(c, () => undefined);
 handlers.set("does-release-note-exist", () => ({ exists: false }));
 handlers.set("get-user-budget", () => null);
@@ -415,6 +428,12 @@ handlers.set("distributed-machine:dispatch", async (envelope) => {
 handlers.set("connection-flow:get-states", () => ({ github: { status: "disconnected", revision: 0 }, supabase: { status: "disconnected", revision: 0 }, neon: { status: "disconnected", revision: 0 } }));
 handlers.set("window-infrastructure:attach-interest", () => undefined);
 handlers.set("window-infrastructure:detach-interest", () => undefined);
+// Dyad arbitrates the version preview between its windows: a window asks to own an app's preview
+// before it may select a version, and the version controls refuse to work until it does. One tab owns
+// everything here, so the interest is always granted and releasing it always starts the cleanup.
+handlers.set("version-preview:acquire-window-interest", () => ({ acquired: true }));
+handlers.set("version-preview:restore-window-interest", () => ({ acquired: true }));
+handlers.set("version-preview:release-window-interest", () => ({ cleanupStarted: true }));
 handlers.set("is-capacitor", () => false);
 handlers.set("get-app-theme", () => null);
 handlers.set("get-proposal", () => null);
