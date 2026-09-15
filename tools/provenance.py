@@ -61,7 +61,7 @@ cargo_name, cargo_version = package.group(1), package.group(2)
 import tarfile, time
 crate_path = root / "core" / "target" / "package" / f"{cargo_name}-{cargo_version}.crate"
 crate_path.parent.mkdir(parents=True, exist_ok=True)
-members = sorted([root / "core" / "Cargo.toml", root / "core" / "Cargo.lock", root / "generated" / "dyad_core.rs"] + [p for p in (root / "core" / "src").rglob("*") if p.is_file()])
+members = sorted([root / "core" / "Cargo.toml", root / "core" / "Cargo.lock", root / "generated" / "hologram_forge_core.rs"] + [p for p in (root / "core" / "src").rglob("*") if p.is_file()])
 with tarfile.open(crate_path, "w:gz", compresslevel=9, format=tarfile.PAX_FORMAT) as tar:
     for path in members:
         info = tarfile.TarInfo(str(path.relative_to(root)).replace("\\", "/"))
@@ -70,7 +70,7 @@ with tarfile.open(crate_path, "w:gz", compresslevel=9, format=tarfile.PAX_FORMAT
         tar.addfile(info, io.BytesIO(data))
 closure = json.loads((root / "shell" / "manifest.json").read_text(encoding="utf-8"))["closure"]
 provenance = {
-    "schema": "dyad-prism/provenance/1",
+    "schema": "hologram-forge/provenance/1",
     "attestation_id": attestation_id,
     "build_id": build_id,
     "source_id": attestation["source_id"],
@@ -90,12 +90,12 @@ provenance = {
     "kernel_ir_sha256": kernel_sha,
     "coverage_sha256": coverage_sha,
     "roots_sha256": roots_sha,
-    "generated_core_sha256": sha(root / "generated" / "dyad_core.rs"),
+    "generated_core_sha256": sha(root / "generated" / "hologram_forge_core.rs"),
     "cargo_name": cargo_name,
     "cargo_version": cargo_version,
     "cargo_crate_sha256": sha(crate_path),
-    "cargo_crate_kind": "deterministic tar of Cargo.toml, Cargo.lock, src/** and generated/dyad_core.rs (cargo package refuses the git dependency)",
-    "view_model_id": sha(root / "src" / "Dyad.lex.tex"),
+    "cargo_crate_kind": "deterministic tar of Cargo.toml, Cargo.lock, src/** and generated/hologram_forge_core.rs (cargo package refuses the git dependency)",
+    "view_model_id": sha(root / "src" / "Forge.lex.tex"),
     "browser_projection_sha256": closure,
     "prismpm_commit": (root / "PRISMPM_REV").read_text(encoding="utf-8").strip(),
 }

@@ -37,7 +37,7 @@ def preimage_body(application, version, closure, attestation):
     # as PrismPM's canonical JSON spells an object. PrismPM derives model_id (SHA-256) and the
     # model content kappa (BLAKE3) from exactly these bytes.
     return join(strings(s('{"application":'), q(application), s(',"attestation":'), q(attestation), s(',"closure":'), q(closure),
-                        s(',"schema":"dyad-prism/published/1","version":'), q(version), s("}")))
+                        s(',"schema":"hologram-forge/published/1","version":'), q(version), s("}")))
 
 
 def manifest_body(lean_manifest, coverage, kernel, model_id, semantic_id, source_id):

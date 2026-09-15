@@ -1,7 +1,7 @@
 //! Byte identity of the generated core against the daemon's rule, on the
 //! fixed corpus `tools/corpus.py` writes to `model/inference.json`.
 
-use dyad_core::{
+use hologram_forge_core::{
     admitPage, done, encodeCompletion, encodeDelta, encodeError, encodeFinal, encodeModels, encodeOpenRouterRequest, encodeRole, endpointReady, expertPage, fetchSource, firstTokenReady, loaderStart, memoMatches, objEntry, packRank, packed, pageAction, poolAdmit, prefetchOrder, preimages, promote, rootPreimage, route, tablePage, Admission, Completion, Manifest, Memo, Message, Obj, PageAction, Priority, Provider, Request, Route, Section, Shard, Source, Staging, Start, Tier,
 };
 use serde_json::Value;

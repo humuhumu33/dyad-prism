@@ -22,7 +22,7 @@ const seen = new Map();
 const emit = (channel, payload) => { const set = listeners.get(channel); if (set) for (const fn of set) { try { fn(payload); } catch (e) { console.error(e); } } };
 
 // ---- the generated core, the addresses and the store come from the shared inference module: one
-// core.wasm, one BLAKE3, one database ("dyad-prism" v2) for the builder's records and the seals.
+// core.wasm, one BLAKE3, one database ("hologram-forge" v2) for the builder's records and the seals.
 const enc = new TextEncoder(), dec = new TextDecoder();
 let core = null;
 const coreReady = inference.coreReady().then((c) => (core = c));
@@ -63,7 +63,7 @@ handlers.set("get-system-platform", () => "web");
 handlers.set("get-app-version", () => ({ version: "1.15.0-web" }));
 handlers.set("native-theme:get-state", () => ({ shouldUseDarkColors: matchMedia("(prefers-color-scheme: dark)").matches }));
 handlers.set("get-initial-load-telemetry-context", () => ({ isFirstSession: false, previousSessionAppSize: null }));
-// The build engine is esbuild in the tab; Dyad asks for Node before it shows a preview, so the
+// The build engine is esbuild in the tab; the renderer asks for Node before it shows a preview, so the
 // answer names the engine that will run: no Node is installed or needed.
 handlers.set("nodejs-status", () => ({ nodeVersion: "browser (esbuild in the tab)", pnpmVersion: "browser", nodeDownloadUrl: "", source: "system", nodePath: null, managedNodeInstalled: false, managedNodeVersion: null, systemNodeTooOld: false, managedNodeSupported: false }));
 // A window here is a tab, and its session id has to be a UUID: the renderer parses it, and "web-1"
@@ -103,7 +103,7 @@ const OPENROUTER_MODELS = [
   { apiName: "qwen/qwen3.8-flash", displayName: "Qwen 3.8 Flash", contextWindow: 256000 },
   { apiName: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", contextWindow: 256000 },
 ];
-// The device is a provider Dyad counts as set up (a custom provider whose "environment variable" is
+// The device is a provider the renderer counts as set up (a custom provider whose "environment variable" is
 // the GPU), so a machine with WebGPU needs no key before its first prompt.
 const LOCAL = { id: "local", name: "On your device", type: "custom", hasFreeTier: true, envVarName: "HOLOGRAM_DEVICE" };
 // The window is the engine's own (q/core/loader.js: BitNet 2B, ctx 3000), not a round number: a build
@@ -315,7 +315,7 @@ handlers.set("chat:count-tokens", async ({ chatId, input }) => {
   return { estimatedTotalTokens: codebaseTokens + systemPromptTokens + messageHistoryTokens + inputTokens, actualMaxTokens: null, messageHistoryTokens, codebaseTokens, mentionedAppsTokens: 0, inputTokens, systemPromptTokens, contextWindow };
 });
 
-// ---- the app run machine. Dyad's renderer talks to app running as a remote machine: it subscribes
+// ---- the app run machine. the renderer talks to app running as a remote machine: it subscribes
 // to a key and dispatches intents; the host owns the state and publishes snapshots. Here START builds
 // the project in the tab (esbuild-wasm, dependencies through an import map) and serves it through
 // the worker under the model's previewPath of the head address; PROXY_READY is the snapshot with
@@ -428,7 +428,7 @@ handlers.set("distributed-machine:dispatch", async (envelope) => {
 handlers.set("connection-flow:get-states", () => ({ github: { status: "disconnected", revision: 0 }, supabase: { status: "disconnected", revision: 0 }, neon: { status: "disconnected", revision: 0 } }));
 handlers.set("window-infrastructure:attach-interest", () => undefined);
 handlers.set("window-infrastructure:detach-interest", () => undefined);
-// Dyad arbitrates the version preview between its windows: a window asks to own an app's preview
+// the renderer arbitrates the version preview between its windows: a window asks to own an app's preview
 // before it may select a version, and the version controls refuse to work until it does. One tab owns
 // everything here, so the interest is always granted and releasing it always starts the cleanup.
 handlers.set("version-preview:acquire-window-interest", () => ({ acquired: true }));
@@ -450,9 +450,9 @@ handlers.set("git:get-uncommitted-file-diff", async ({ appId, filePath }) => {
 handlers.set("github:list-local-branches", () => ({ branches: ["main"], current: "main" }));
 handlers.set("reload-env-path", () => undefined);
 handlers.set("get-cloud-sandbox-status", () => null);
-// The chat's context: which of the project's files a turn carries. Dyad keeps the globs on the app
+// The chat's context: which of the project's files a turn carries. the renderer keeps the globs on the app
 // record and shows each one with what it matches, so the counts are measured here over the app's own
-// files -- no glob library, the two wildcards Dyad's dialog writes are enough.
+// files -- no glob library, the two wildcards the renderer's dialog writes are enough.
 const globMatch = (glob, path) => new RegExp("^" + String(glob).split("**").map((s) => s.split("*").map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*")).join(".*") + "$").test(path);
 async function contextCounts(appId, globs) {
   const paths = await filesOf(appId);
@@ -503,11 +503,11 @@ handlers.set("free-model-quota:get-status", () => ({ messagesUsed: 0, messagesLi
 window.__preview = buildPreview;
 
 // ---- the model: OpenRouter with the visitor's own key, streamed as OpenAI compatible SSE. The key
-// lives in the settings record as Dyad keeps it (providerSettings.openrouter.apiKey.value).
+// lives in the settings record as the renderer keeps it (providerSettings.openrouter.apiKey.value).
 async function* streamOpenRouter({ key, model, messages, signal }) {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST", signal,
-    headers: { "content-type": "application/json", authorization: "Bearer " + key, "HTTP-Referer": location.origin, "X-Title": "dyad-prism" },
+    headers: { "content-type": "application/json", authorization: "Bearer " + key, "HTTP-Referer": location.origin, "X-Title": "hologram-forge" },
     body: JSON.stringify({ model, messages, stream: true }),
   });
   if (!res.ok) throw new Error("OpenRouter " + res.status + ": " + (await res.text()).slice(0, 200));
@@ -528,7 +528,7 @@ async function* streamOpenRouter({ key, model, messages, signal }) {
   }
 }
 
-// ---- Dyad's tags: what the model writes becomes files. The grammar is the renderer's: a block per
+// ---- the renderer's tags: what the model writes becomes files. The grammar is the renderer's: a block per
 // file, attributes path and description, content verbatim between the tags; delete and rename are
 // single tags; add-dependency names packages the import map must carry.
 function parseDyadTags(text) {
@@ -554,10 +554,10 @@ async function applyDyadTags(appId, tags) {
 }
 window.__chat = { streamOpenRouter, parseDyadTags, applyDyadTags };
 
-// ---- the chat stream machine. Dyad's renderer submits a turn only here: SUBMIT on the chat_stream
+// ---- the chat stream machine. the renderer submits a turn only here: SUBMIT on the chat_stream
 // machine, then it watches the snapshot (admitting, streaming, finalizing, idle) and applies the
 // chunk events to the message it renders. The model is OpenRouter with the visitor's own key; the
-// prompt is Dyad's text tag build prompt, so the answer carries <dyad-write> blocks the host applies
+// prompt is the renderer's text tag build prompt, so the answer carries <dyad-write> blocks the host applies
 // to the project, seals as a version, and the renderer then reloads the preview by itself.
 const chatMachines = new Map(); // chatId -> { revision, state, abort }
 const idleChat = (chatId) => ({ schemaVersion: 1, chatId, revision: 0, phase: "idle", invocationRef: null, error: null, queueRevision: 0, queuePaused: false, queuePauseReason: null, queue: [], stopPolicyVersion: 0, capabilities: { canSubmit: true, canCancel: false, canPauseQueue: true, canResumeQueue: false }, lastAcceptance: null, lastCompletion: null, lastQueueMutation: null });
@@ -727,7 +727,7 @@ handlers.set("chat:cancel", (chatId) => { const m = chatMachineOf(chatId); if (m
 
 // ---- the surface
 // Every answer is checked against the channel's own contract, which the renderer publishes on the page
-// (vendor/dyad/hologram.contracts.ts). Dyad's renderer validates nothing it receives, so a wrong shape
+// (vendor/dyad/hologram.contracts.ts). the renderer validates nothing it receives, so a wrong shape
 // used to reach a screen and crash it far from the cause ("is not iterable"). A disagreement is named
 // in the console, and an array the renderer will iterate is answered with an empty one rather than a
 // value it cannot walk: a screen renders empty instead of dying.
@@ -740,7 +740,7 @@ function checked(channel, value) {
   console.error("[host] the answer for", channel, "does not match its contract", parsed.error && parsed.error.issues ? parsed.error.issues.slice(0, 3) : parsed.error, value);
   return iterable ? value : (schema._def && (schema._def.type === "array" || schema._def.typeName === "ZodArray") ? [] : value);
 }
-// Dyad's renderer carries every screen it has ever had, including Supabase, Vercel, Neon, Coolify,
+// the renderer carries every screen it has ever had, including Supabase, Vercel, Neon, Coolify,
 // GitHub, MCP, a terminal and native windows, none of which exist here. A channel this build does not
 // implement is answered with the empty value the channel's own contract accepts -- no servers, no
 // tests, no cloud projects, all true here -- so a screen that opens one renders its empty state
@@ -941,7 +941,7 @@ window.electron = {
   },
 };
 // The landing page keeps the visitor's first prompt; on arrival the builder creates the app from
-// the scaffold, opens its chat and runs the turn, so the visitor lands in Dyad's UI mid build.
+// the scaffold, opens its chat and runs the turn, so the visitor lands in the renderer's UI mid build.
 (async () => {
   let first = null;
   try { first = JSON.parse(sessionStorage.getItem("holo.first-prompt.v1") || "null"); sessionStorage.removeItem("holo.first-prompt.v1"); } catch (e) {}

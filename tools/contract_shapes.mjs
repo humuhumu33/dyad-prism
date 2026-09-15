@@ -1,4 +1,4 @@
-// Every channel Dyad's renderer calls, with the shape its contract declares, and what the host
+// Every channel the renderer calls, with the shape its contract declares, and what the host
 // answers. The renderer types its calls but validates no answer at runtime, so a handler that returns
 // an object where the contract says array crashes a screen ("is not iterable") only when a user opens
 // it. This reads the vendored contracts and the host side by side and refuses on a mismatch.
@@ -116,7 +116,7 @@ for (const r of rows) {
 }
 console.log(`\n${rows.length} channels answered by the host, ${contracts.size} channels under contract, ${clash.length} mismatch(es)`);
 
-// Most of Dyad's channels belong to features this product does not have -- Supabase, Vercel, Neon,
+// Most of the renderer's channels belong to features this product does not have -- Supabase, Vercel, Neon,
 // Coolify, GitHub, MCP, a terminal, native windows -- and the host implements none of them. A channel
 // a screen reads on mount must still answer something that screen can use, or it dies the moment a
 // user opens it, which is the same defect class as a wrong shape. `shell/host.js` answers an

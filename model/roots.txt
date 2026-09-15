@@ -1,4 +1,4 @@
-Dyad.view
+Forge.view
 Inference.anyEqual
 Inference.contentOf
 Inference.createdOf

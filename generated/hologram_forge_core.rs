@@ -1,11 +1,161 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
+pub enum Route {
+    Serve = 0,
+    Local = 1,
+    Paid = 2,
+    NoKey = 3,
+    NoGpu = 4,
+    PaidOffline = 5,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Section {
     Header = 0,
     Tokenizer = 1,
     Spine = 2,
     Expert = 3,
     Table = 4,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum PageAction {
+    Bind = 0,
+    Fetch = 1,
+    Drop = 2,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Manifest {
+    pub spec: alloc::string::String,
+    pub repo: alloc::string::String,
+    pub revision: alloc::string::String,
+    pub experts: u64,
+    pub tableRows: u64,
+    pub shards: alloc::vec::Vec<crate::Shard>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ref {
+    pub branch: alloc::string::String,
+    pub kappa: alloc::string::String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Start {
+    Cold = 0,
+    Warm = 1,
+    Resume = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Source {
+    Device = 0,
+    Peer = 1,
+    Mirror = 2,
+    Nowhere = 3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Admission {
+    Touch = 0,
+    Insert = 1,
+    EvictThenInsert = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Decision {
+    Accept = 0,
+    Refuse = 1,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Message {
+    pub role: alloc::string::String,
+    pub content: alloc::string::String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wallpaper {
+    pub file: alloc::string::String,
+    pub label: alloc::string::String,
+    pub author: alloc::string::String,
+    pub authorUrl: alloc::string::String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Capabilities {
+    pub endpoints: alloc::vec::Vec<crate::Grant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Request {
+    pub model: alloc::string::String,
+    pub messages: alloc::vec::Vec<crate::Message>,
+    pub maxTokens: Option<u64>,
+    pub seed: Option<u64>,
+    pub temperature: alloc::string::String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaidModel {
+    pub id: alloc::string::String,
+    pub label: alloc::string::String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Completion {
+    pub id: alloc::string::String,
+    pub created: alloc::string::String,
+    pub model: alloc::string::String,
+    pub text: alloc::string::String,
+    pub fingerprint: alloc::string::String,
+    pub receipt: alloc::string::String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Priority {
+    First = 0,
+    Fill = 1,
+    Skip = 2,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Project {
+    pub label: alloc::string::String,
+    pub entries: alloc::vec::Vec<crate::Entry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Obj {
+    pub kind: alloc::string::String,
+    pub label: alloc::string::String,
+    pub kappa: alloc::string::String,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Memo {
+    pub model: alloc::vec::Vec<alloc::string::String>,
+    pub engineKappa: alloc::string::String,
+    pub promptKappa: alloc::string::String,
+    pub paramsKappa: alloc::string::String,
+    pub outputKappa: alloc::string::String,
+    pub receipt: alloc::string::String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Provider {
+    Local = 0,
+    Paid = 1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,50 +232,11 @@ pub struct View {
     pub windowsLabel: alloc::string::String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Priority {
-    First = 0,
-    Fill = 1,
-    Skip = 2,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum PageAction {
-    Bind = 0,
-    Fetch = 1,
-    Drop = 2,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Range {
-    pub start: u64,
-    pub stop: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Route {
-    Serve = 0,
-    Local = 1,
-    Paid = 2,
-    NoKey = 3,
-    NoGpu = 4,
-    PaidOffline = 5,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Message {
-    pub role: alloc::string::String,
-    pub content: alloc::string::String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Staging {
-    TrueRouting = 0,
-    StagedReplace = 1,
+pub struct Entry {
+    pub path: alloc::string::String,
+    pub kappa: alloc::string::String,
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,35 +246,11 @@ pub enum Tier {
     Large = 1,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ref {
-    pub branch: alloc::string::String,
-    pub kappa: alloc::string::String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Request {
-    pub model: alloc::string::String,
-    pub messages: alloc::vec::Vec<crate::Message>,
-    pub maxTokens: Option<u64>,
-    pub seed: Option<u64>,
-    pub temperature: alloc::string::String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Provider {
-    Local = 0,
-    Paid = 1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Source {
-    Device = 0,
-    Peer = 1,
-    Mirror = 2,
-    Nowhere = 3,
+pub enum Staging {
+    TrueRouting = 0,
+    StagedReplace = 1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,85 +262,10 @@ pub struct Shard {
     pub objects: alloc::string::String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Memo {
-    pub model: alloc::vec::Vec<alloc::string::String>,
-    pub engineKappa: alloc::string::String,
-    pub promptKappa: alloc::string::String,
-    pub paramsKappa: alloc::string::String,
-    pub outputKappa: alloc::string::String,
-    pub receipt: alloc::string::String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Decision {
-    Accept = 0,
-    Refuse = 1,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Project {
-    pub label: alloc::string::String,
-    pub entries: alloc::vec::Vec<crate::Entry>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PaidModel {
-    pub id: alloc::string::String,
-    pub label: alloc::string::String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Entry {
-    pub path: alloc::string::String,
-    pub kappa: alloc::string::String,
-    pub bytes: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Preimages {
-    pub prompt: alloc::vec::Vec<u8>,
-    pub params: alloc::vec::Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Capabilities {
-    pub endpoints: alloc::vec::Vec<crate::Grant>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Wallpaper {
-    pub file: alloc::string::String,
-    pub label: alloc::string::String,
-    pub author: alloc::string::String,
-    pub authorUrl: alloc::string::String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Admission {
-    Touch = 0,
-    Insert = 1,
-    EvictThenInsert = 2,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Completion {
-    pub id: alloc::string::String,
-    pub created: alloc::string::String,
-    pub model: alloc::string::String,
-    pub text: alloc::string::String,
-    pub fingerprint: alloc::string::String,
-    pub receipt: alloc::string::String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Start {
-    Cold = 0,
-    Warm = 1,
-    Resume = 2,
+pub struct Range {
+    pub start: u64,
+    pub stop: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,21 +274,9 @@ pub struct Grant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Obj {
-    pub kind: alloc::string::String,
-    pub label: alloc::string::String,
-    pub kappa: alloc::string::String,
-    pub bytes: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Manifest {
-    pub spec: alloc::string::String,
-    pub repo: alloc::string::String,
-    pub revision: alloc::string::String,
-    pub experts: u64,
-    pub tableRows: u64,
-    pub shards: alloc::vec::Vec<crate::Shard>,
+pub struct Preimages {
+    pub prompt: alloc::vec::Vec<u8>,
+    pub params: alloc::vec::Vec<u8>,
 }
 
 pub fn view() -> crate::View {
@@ -788,7 +788,7 @@ pub fn publishDecision(closure: alloc::string::String, built: alloc::string::Str
 }
 
 pub fn publishPreimage(application: alloc::string::String, version: alloc::string::String, closure: alloc::string::String, attestation: alloc::string::String) -> alloc::string::String {
-    { let _x_3 = escapeJson(application); { let _x_5 = alloc::vec![alloc::string::String::from("\"")]; { let _x_6 = { let mut __list = alloc::vec![_x_3]; __list.extend(_x_5.clone()); __list }; { let _x_7 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_6); __list }; { let _x_9 = (_x_7).join(&alloc::string::String::from("")); { let _x_11 = escapeJson(attestation); { let _x_12 = { let mut __list = alloc::vec![_x_11]; __list.extend(_x_5.clone()); __list }; { let _x_13 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_12); __list }; { let _x_14 = (_x_13).join(&alloc::string::String::from("")); { let _x_16 = escapeJson(closure); { let _x_17 = { let mut __list = alloc::vec![_x_16]; __list.extend(_x_5.clone()); __list }; { let _x_18 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_17); __list }; { let _x_19 = (_x_18).join(&alloc::string::String::from("")); { let _x_21 = escapeJson(version); { let _x_22 = { let mut __list = alloc::vec![_x_21]; __list.extend(_x_5.clone()); __list }; { let _x_23 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_22); __list }; { let _x_24 = (_x_23).join(&alloc::string::String::from("")); { let _x_26 = alloc::vec![alloc::string::String::from("}")]; { let _x_27 = { let mut __list = alloc::vec![_x_24]; __list.extend(_x_26); __list }; { let _x_28 = { let mut __list = alloc::vec![alloc::string::String::from(",\"schema\":\"dyad-prism/published/1\",\"version\":")]; __list.extend(_x_27); __list }; { let _x_29 = { let mut __list = alloc::vec![_x_19]; __list.extend(_x_28); __list }; { let _x_30 = { let mut __list = alloc::vec![alloc::string::String::from(",\"closure\":")]; __list.extend(_x_29); __list }; { let _x_31 = { let mut __list = alloc::vec![_x_14]; __list.extend(_x_30); __list }; { let _x_32 = { let mut __list = alloc::vec![alloc::string::String::from(",\"attestation\":")]; __list.extend(_x_31); __list }; { let _x_33 = { let mut __list = alloc::vec![_x_9]; __list.extend(_x_32); __list }; { let _x_34 = { let mut __list = alloc::vec![alloc::string::String::from("{\"application\":")]; __list.extend(_x_33); __list }; { let _x_35 = (_x_34).join(&alloc::string::String::from("")); _x_35 } } } } } } } } } } } } } } } } } } } } } } } } } } }
+    { let _x_3 = escapeJson(application); { let _x_5 = alloc::vec![alloc::string::String::from("\"")]; { let _x_6 = { let mut __list = alloc::vec![_x_3]; __list.extend(_x_5.clone()); __list }; { let _x_7 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_6); __list }; { let _x_9 = (_x_7).join(&alloc::string::String::from("")); { let _x_11 = escapeJson(attestation); { let _x_12 = { let mut __list = alloc::vec![_x_11]; __list.extend(_x_5.clone()); __list }; { let _x_13 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_12); __list }; { let _x_14 = (_x_13).join(&alloc::string::String::from("")); { let _x_16 = escapeJson(closure); { let _x_17 = { let mut __list = alloc::vec![_x_16]; __list.extend(_x_5.clone()); __list }; { let _x_18 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_17); __list }; { let _x_19 = (_x_18).join(&alloc::string::String::from("")); { let _x_21 = escapeJson(version); { let _x_22 = { let mut __list = alloc::vec![_x_21]; __list.extend(_x_5.clone()); __list }; { let _x_23 = { let mut __list = alloc::vec![alloc::string::String::from("\"")]; __list.extend(_x_22); __list }; { let _x_24 = (_x_23).join(&alloc::string::String::from("")); { let _x_26 = alloc::vec![alloc::string::String::from("}")]; { let _x_27 = { let mut __list = alloc::vec![_x_24]; __list.extend(_x_26); __list }; { let _x_28 = { let mut __list = alloc::vec![alloc::string::String::from(",\"schema\":\"hologram-forge/published/1\",\"version\":")]; __list.extend(_x_27); __list }; { let _x_29 = { let mut __list = alloc::vec![_x_19]; __list.extend(_x_28); __list }; { let _x_30 = { let mut __list = alloc::vec![alloc::string::String::from(",\"closure\":")]; __list.extend(_x_29); __list }; { let _x_31 = { let mut __list = alloc::vec![_x_14]; __list.extend(_x_30); __list }; { let _x_32 = { let mut __list = alloc::vec![alloc::string::String::from(",\"attestation\":")]; __list.extend(_x_31); __list }; { let _x_33 = { let mut __list = alloc::vec![_x_9]; __list.extend(_x_32); __list }; { let _x_34 = { let mut __list = alloc::vec![alloc::string::String::from("{\"application\":")]; __list.extend(_x_33); __list }; { let _x_35 = (_x_34).join(&alloc::string::String::from("")); _x_35 } } } } } } } } } } } } } } } } } } } } } } } } } } }
 }
 
 pub fn sourceManifest(leanManifest: alloc::string::String, coverage: alloc::string::String, kernel: alloc::string::String, modelId: alloc::string::String, semanticId: alloc::string::String, sourceId: alloc::string::String) -> alloc::string::String {

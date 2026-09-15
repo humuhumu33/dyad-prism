@@ -19,23 +19,23 @@
   "lean_manifest_sha256": "2a09850e3eff4aa48ee9dc8b0a5a7cb250a3b81cdce608ae28e3b91df594a3f4",
   "lcnf_manifest_sha256": "f9d51a572ae00fbcd0a3b7ac613203e05634f938011bb5d3f744ed91b028ccf4",
   "generated_core_sha256": "e31e6f548c043755e02493b3d169d05fba6333d69998e14bb148f5eed811afa2",
-  "cargo_name": "dyad-core",
+  "cargo_name": "hologram-forge-core",
   "cargo_version": "0.1.0",
   "cargo_crate_sha256": "edda831629df6f963f7527437b4ef1eabb8f2c9ba7d96fcc04f5d958d1e837d2",
   "view_model_id": "a87164dd18c3502f5427e08b7710411c1da1d0e4fafbdd6c29c8538f0705931d",
   "browser_projection_sha256": "ec549f350322b1f39b9fe1a73cc977838e2cbe7b0386a019196c2bd3935fe6b4"
  },
  "identities": {
-  "application_kappa": "blake3:f72d2ef2ccd28bd8ec0a0c2c461ca0b29182a81f4aec08ba8358af82eaf337cb",
-  "archive_fingerprint": "0a569c96d92e988284ee13ec2ef91311e0f8bdfa182312aafd18c86b059bf973",
-  "archive_kappa": "blake3:0487c8354db00a67779a5752243286d4d1769214dc29b7c5b5b21ede5bd38c3c",
-  "guest_content_kappa": "blake3:9b4e9c014f5afccf57a449c4240c081a2ee15793c5ca2cddf5abbd0458ed9bc6",
-  "model_content_kappa": "blake3:0468811ad32ea39587bac81f6e1ffc6f6fd2ff05e2dc98d8780cb22d17ac414c",
-  "view_content_kappa": "blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08"
+  "guest_content_kappa": "blake3:3673fac8454fdc2943eaedd80c4b183c144bf440d30d0599df10c145215574ad",
+  "view_content_kappa": "blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08",
+  "model_content_kappa": "blake3:61bee92ed2d796d28a6ce0fb80df0ea6f403f8e1d72b72d0751426ff7cac37f1",
+  "application_kappa": "blake3:4cf6b2a59d7ea2be8f766350b625ada88c11dbc0a34037034eab6c7f09c50287",
+  "archive_fingerprint": "fabfcff87869b9c3d8f1766317d7e733a53eecba762c84d3339f7e2e4f5d765e",
+  "archive_kappa": "blake3:94518e8e5dbed1b99c745f4eac63cb8991d2e1a3b0289bc6ab069f73b3af6f13"
  },
- "directory": "{\"schema_version\":1,\"primary_layer\":0,\"requires_kappa\":\"blake3:cf46eb3028b50fde0444a1a648f5ce7cba94013f541c86537df54adf5d203e1c\",\"layers\":[{\"position\":0,\"kind\":\"wasm\",\"content_kappa\":\"blake3:9b4e9c014f5afccf57a449c4240c081a2ee15793c5ca2cddf5abbd0458ed9bc6\",\"entry\":\"holo_run\",\"contract\":\"hologram:guest/core-wasm@1\",\"architecture\":null,\"surface\":null,\"engine\":null},{\"position\":1,\"kind\":\"view\",\"content_kappa\":\"blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08\",\"entry\":\"index.html\",\"contract\":null,\"architecture\":null,\"surface\":\"portable\",\"engine\":null}],\"children\":[],\"blobs\":[{\"kappa\":\"blake3:0468811ad32ea39587bac81f6e1ffc6f6fd2ff05e2dc98d8780cb22d17ac414c\",\"byte_length\":299},{\"kappa\":\"blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08\",\"byte_length\":5672},{\"kappa\":\"blake3:9b4e9c014f5afccf57a449c4240c081a2ee15793c5ca2cddf5abbd0458ed9bc6\",\"byte_length\":389844},{\"kappa\":\"blake3:cf46eb3028b50fde0444a1a648f5ce7cba94013f541c86537df54adf5d203e1c\",\"byte_length\":104}]}",
- "byteLength": 400668,
+ "directory": "{\"schema_version\":1,\"primary_layer\":0,\"requires_kappa\":\"blake3:cf46eb3028b50fde0444a1a648f5ce7cba94013f541c86537df54adf5d203e1c\",\"layers\":[{\"position\":0,\"kind\":\"wasm\",\"content_kappa\":\"blake3:3673fac8454fdc2943eaedd80c4b183c144bf440d30d0599df10c145215574ad\",\"entry\":\"holo_run\",\"contract\":\"hologram:guest/core-wasm@1\",\"architecture\":null,\"surface\":null,\"engine\":null},{\"position\":1,\"kind\":\"view\",\"content_kappa\":\"blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08\",\"entry\":\"index.html\",\"contract\":null,\"architecture\":null,\"surface\":\"portable\",\"engine\":null}],\"children\":[],\"blobs\":[{\"kappa\":\"blake3:3673fac8454fdc2943eaedd80c4b183c144bf440d30d0599df10c145215574ad\",\"byte_length\":391791},{\"kappa\":\"blake3:61bee92ed2d796d28a6ce0fb80df0ea6f403f8e1d72b72d0751426ff7cac37f1\",\"byte_length\":303},{\"kappa\":\"blake3:6e1f8c505c5ec361e0c6e276522fbe03410b2c3b5c141aa4496f826e14553f08\",\"byte_length\":5672},{\"kappa\":\"blake3:cf46eb3028b50fde0444a1a648f5ce7cba94013f541c86537df54adf5d203e1c\",\"byte_length\":104}]}",
+ "byteLength": 402629,
  "modelId": "a995603ac73329898a70b90511245fe4971d904829b3180adef2af8d86f41fc5",
  "viewBytes": 5672,
- "guestBytes": 389844
+ "guestBytes": 391791
 }

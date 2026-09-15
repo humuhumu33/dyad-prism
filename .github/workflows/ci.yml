@@ -23,11 +23,11 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
-            ~/.cache/dyad-prism-lane
+            ~/.cache/hologram-forge-lane
             ~/.elan
           key: lane-${{ hashFiles('PRISMPM_REV', 'lean-toolchain') }}
       - name: The authored model is what the author script writes
-        run: python3 tools/author.py && git diff --exit-code -- src/Dyad.lex.tex
+        run: python3 tools/author.py && git diff --exit-code -- src/Forge.lex.tex
       - name: The lane, byte compared against the committed artifacts
         run: ./scripts/lane.sh
       - name: Byte identity corpus

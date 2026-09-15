@@ -1,9 +1,9 @@
-"""Place Dyad's built renderer beside the shell, and stage the scaffold beside it.
+"""Place the renderer's built output beside the shell, and stage the scaffold beside it.
 
 The homepage is shell/index.html, projected by the core from the verified View; it references the
 renderer's assets by fixed names (vendor/dyad/vite.shell.config.mts, ours). This script copies the Vite output
 under shell/assets/, writes shell/404.html as a copy of the homepage so Pages answers a refresh on any
-of Dyad's routes with the app (the router reads the URL), and stages Dyad's scaffold with a file list,
+of the renderer's routes with the app (the router reads the URL), and stages the renderer's scaffold with a file list,
 which the host creates apps from. Run after the Vite build: python3 scripts/stamp_shell.py
 """
 import json, pathlib, re, shutil

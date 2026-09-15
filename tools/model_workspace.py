@@ -1,4 +1,4 @@
-"""Declarations of the dyad-prism model, as data. Imported by tools/author.py, which partitions them into
+"""Declarations of the hologram-forge model, as data. Imported by tools/author.py, which partitions them into
 LexLean modules, qualifies cross module references and writes src/*.lex.tex. Not run on its own."""
 import json, pathlib
 

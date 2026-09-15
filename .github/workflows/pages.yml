@@ -28,7 +28,7 @@ jobs:
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
-            ~/.cache/dyad-prism-lane
+            ~/.cache/hologram-forge-lane
             ~/.elan
           key: lane-${{ hashFiles('PRISMPM_REV', 'lean-toolchain') }}
       - name: The lane, which projects the page from the verified core and builds the wasm the page loads
@@ -46,8 +46,8 @@ jobs:
       - name: Every shell script parses the way the browser parses it
         run: node tools/shell_parse.mjs
       - name: The vendored renderer, built beside the shell as the homepage (no Electron, no src/pro)
-        run: cd vendor/dyad && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --engine-strict=false --force --no-audit --no-fund --loglevel=error && npx vite build --config vite.shell.config.mts --base /dyad-prism/ --outDir dist --emptyOutDir && python3 ../../scripts/stamp_shell.py
-      - name: The host answers Dyad's own contracts (the renderer's node_modules are installed by now)
+        run: cd vendor/dyad && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --engine-strict=false --force --no-audit --no-fund --loglevel=error && npx vite build --config vite.shell.config.mts --base /hologram-forge/ --outDir dist --emptyOutDir && python3 ../../scripts/stamp_shell.py
+      - name: The host answers the renderer's own contracts (the renderer's node_modules are installed by now)
         run: node tools/contract_shapes.mjs --check
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

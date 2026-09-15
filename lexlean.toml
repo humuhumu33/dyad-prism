@@ -1,9 +1,9 @@
 spec = "lexlean/project/1"
-name = "prism-dyad"
+name = "hologram-forge"
 language = "1.1"
-module_prefix = "PrismDyad"
+module_prefix = "HologramForge"
 source_roots = ["src"]
-entrypoints = ["src/Dyad.lex.tex", "src/Inference.lex.tex", "src/Object.lex.tex", "src/Publish.lex.tex", "src/Workspace.lex.tex"]
+entrypoints = ["src/Forge.lex.tex", "src/Inference.lex.tex", "src/Object.lex.tex", "src/Publish.lex.tex", "src/Workspace.lex.tex"]
 build_root = ".lexlean"
 lockfile = "lexlean.lock"
 lean_workspace = "."

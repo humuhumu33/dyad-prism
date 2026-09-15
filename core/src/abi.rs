@@ -15,7 +15,7 @@
 //!              vendored archive code: compose (a .holo v4 from the guest, the View bundle, the model
 //!              document, the source manifest and the provenance; bytes travel as base64) and
 //!              validate-application (PrismPM's strict Holo/1 profile check)
-//!   Dyad:      view
+//!   Forge:     view
 //! Errors: {"error":"…"}.
 
 use crate::holo::archive::{compose_application, validate_application, ApplicationArchiveInput, ArchiveProvenance};

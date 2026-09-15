@@ -1,4 +1,4 @@
-"""Authoring the dyad-prism model: five LexLean modules from three declaration sources.
+"""Authoring the hologram-forge model: five LexLean modules from three declaration sources.
 
 The authority is the set of .lex.tex files this script writes; LexLean and PrismPM read only those.
 The declarations live as data in tools/model_workspace.py (the builder: records, snapshot preimage,
@@ -7,7 +7,7 @@ preimages, memo, the route table, the OpenAI wire, the OpenRouter request, the Î
 rule, pool and stage tables, pack, ladder and loader) and tools/model_publish.py (the published
 application: its model document, source manifest, decision and path). This script partitions them
 into modules, qualifies every reference that crosses a module boundary, merges the two View records
-into one, and writes src/{Workspace,Inference,Object,Publish,Dyad}.lex.tex, plus
+into one, and writes src/{Workspace,Inference,Object,Publish,Forge}.lex.tex, plus
 model/roots.txt (Module.name, strictly sorted, as the exporter demands).
 
 Run from the project root: python3 tools/author.py
@@ -74,7 +74,7 @@ view_definition["body"] = {"fields": values, "kind": "record", "type": {"name": 
 view_theorem = by_name(ws.decls, "view_headline")
 
 # ---- modules
-modules = {"Workspace": [], "Inference": [], "Object": [], "Publish": [], "Dyad": []}
+modules = {"Workspace": [], "Inference": [], "Object": [], "Publish": [], "Forge": []}
 name2mod = {}
 
 
@@ -97,13 +97,13 @@ for d in inf_decls:
     elif d["name"] in OBJECT_TYPES or d["name"] in OBJECT_DEFS:
         place("Object", d)
     elif d["name"] in TOP_TYPES:
-        place("Dyad", d)
+        place("Forge", d)
     else:
         place("Inference", d)
 for d in pub.decls:
     place("Publish", d)
 for d in (view_structure, view_definition, view_theorem):
-    place("Dyad", d)
+    place("Forge", d)
 
 
 def mentioned(term, out):
@@ -120,7 +120,7 @@ def mentioned(term, out):
     return out
 
 
-ORDER = ["Dyad", "Publish", "Object", "Inference", "Workspace"]
+ORDER = ["Forge", "Publish", "Object", "Inference", "Workspace"]
 for d in inf_decls:
     if d["kind"] != "theorem":
         continue
@@ -165,7 +165,7 @@ def document(name, imports, decls):
 (ROOT / "src").mkdir(exist_ok=True)
 (ROOT / "model").mkdir(exist_ok=True)
 roots = []
-DEPENDENCY_ORDER = ["Workspace", "Inference", "Object", "Publish", "Dyad"]
+DEPENDENCY_ORDER = ["Workspace", "Inference", "Object", "Publish", "Forge"]
 for name in DEPENDENCY_ORDER:
     decls = modules[name]
     imports = set()

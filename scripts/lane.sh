@@ -6,7 +6,7 @@
 #      (leanchecker replay, exact per declaration axiom policy).
 #   2. lean4-prod, also as PrismPM vendors it: export every definition root to
 #      kernel LCNF twice (byte identical), then generate Rust twice (byte
-#      identical) into generated/dyad_core.rs.
+#      identical) into generated/hologram_forge_core.rs.
 #   3. Compile the generated Rust for the host and for wasm32-unknown-unknown.
 #
 # Needs: git, cargo (rustup), python3, and the elan toolchain
@@ -14,7 +14,7 @@
 # the first PrismPM clone).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WORK="${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane}"
+WORK="${FORGE_LANE_WORK:-$HOME/.cache/hologram-forge-lane}"
 PRISMPM_REV="$(tr -d '\n' < "$ROOT/PRISMPM_REV")"
 mkdir -p "$WORK"
 
@@ -71,16 +71,16 @@ tar xf "$WORK/PrismPM/vendor/lean4-prod/lean.tar" -C "$WS/lean4-prod"
 # copied beside lean4-prod, built and replayed by leanchecker, and exported together.
 MODULES=$(grep -o '"src/[A-Za-z0-9_]*\.lex\.tex"' "$ROOT/lexlean.toml" | sed 's#"src/##; s#\.lex\.tex"##')
 [ -n "$MODULES" ] || { echo "lexlean.toml lists no entrypoints" >&2; exit 1; }
-mkdir -p "$WS/PrismDyad"
+mkdir -p "$WS/HologramForge"
 LAKE_ROOTS=""; CHECK=""; EXPORT_MODULES=""
 for m in $MODULES; do
-  cp "$ROOT/.lexlean/build/$BUILD_ID/modules/PrismDyad/$m.lean" "$WS/PrismDyad/"
-  LAKE_ROOTS="$LAKE_ROOTS${LAKE_ROOTS:+, }\"PrismDyad.$m\""
-  CHECK="$CHECK PrismDyad.$m"
-  EXPORT_MODULES="$EXPORT_MODULES --module PrismDyad.$m"
+  cp "$ROOT/.lexlean/build/$BUILD_ID/modules/HologramForge/$m.lean" "$WS/HologramForge/"
+  LAKE_ROOTS="$LAKE_ROOTS${LAKE_ROOTS:+, }\"HologramForge.$m\""
+  CHECK="$CHECK HologramForge.$m"
+  EXPORT_MODULES="$EXPORT_MODULES --module HologramForge.$m"
 done
 cat > "$WS/lakefile.toml" <<EOF
-name = "dyad_verify"
+name = "forge_verify"
 version = "0.1.0"
 
 [[lean_lib]]
@@ -98,12 +98,12 @@ export LEAN_PATH="$WS/.lake/build/lib/lean"
 # model/roots.txt names every definition root as Module.name, strictly sorted, as the exporter demands.
 ROOTS=""
 for r in $(tr '\n' ' ' < "$ROOT/model/roots.txt"); do
-  ROOTS="$ROOTS --root PrismDyad.$r"
+  ROOTS="$ROOTS --root HologramForge.$r"
 done
 # shellcheck disable=SC2086
-lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module PrismDyad --out "$WS/export-a"
+lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module HologramForge --out "$WS/export-a"
 # shellcheck disable=SC2086
-lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module PrismDyad --out "$WS/export-b"
+lake exe prod-export $EXPORT_MODULES $ROOTS --ir-module HologramForge --out "$WS/export-b"
 cmp "$WS/export-a/kernel.ir" "$WS/export-b/kernel.ir"
 cmp "$WS/export-a/roots.json" "$WS/export-b/roots.json"
 cmp "$WS/export-a/coverage.json" "$WS/export-b/coverage.json"
@@ -147,13 +147,13 @@ if [ "${LANE_WRITE:-0}" = "1" ]; then
   cp "$WS/export-a/kernel.ir" "$ROOT/generated/kernel.ir"
   cp "$WS/export-a/roots.json" "$ROOT/generated/roots.json"
   cp "$WS/export-a/coverage.json" "$ROOT/generated/coverage.json"
-  cp "$WS/generated.rs" "$ROOT/generated/dyad_core.rs"
+  cp "$WS/generated.rs" "$ROOT/generated/hologram_forge_core.rs"
   echo "wrote generated/ (review and commit)"
 else
   compare "$WS/export-a/kernel.ir" "$ROOT/generated/kernel.ir"
   compare "$WS/export-a/roots.json" "$ROOT/generated/roots.json"
   compare "$WS/export-a/coverage.json" "$ROOT/generated/coverage.json"
-  compare "$WS/generated.rs" "$ROOT/generated/dyad_core.rs"
+  compare "$WS/generated.rs" "$ROOT/generated/hologram_forge_core.rs"
 fi
 
 # 6. The generated core for the host and for wasm32; the wasm is what the page loads.
@@ -161,7 +161,7 @@ cd "$ROOT/core"
 rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true
 cargo build --release -q
 cargo build --release -q --target wasm32-unknown-unknown
-cp target/wasm32-unknown-unknown/release/dyad_core.wasm "$ROOT/shell/core.wasm"
+cp target/wasm32-unknown-unknown/release/hologram_forge_core.wasm "$ROOT/shell/core.wasm"
 ls -la "$ROOT/shell/core.wasm"
 
 # 7. The page is a projection of the verified View: index.html, the web manifest and the shell

@@ -1,7 +1,7 @@
 //! Byte identity of the generated core against the host's rule, on the fixed corpus
 //! `tools/corpus.py` writes to `model/corpus.json`.
 
-use dyad_core::{headOf, networkDecision, previewPath, restoreDecision, snapshotPreimage, Capabilities, Decision, Entry, Grant, Project, Ref};
+use hologram_forge_core::{headOf, networkDecision, previewPath, restoreDecision, snapshotPreimage, Capabilities, Decision, Entry, Grant, Project, Ref};
 use serde_json::Value;
 
 fn corpus() -> Vec<Value> {

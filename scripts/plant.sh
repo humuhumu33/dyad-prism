@@ -19,10 +19,10 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-LX="${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane}/PrismPM/target/release/lexlean"
+LX="${FORGE_LANE_WORK:-$HOME/.cache/hologram-forge-lane}/PrismPM/target/release/lexlean"
 export PATH="$HOME/.cargo/bin:$HOME/.elan/bin:$PATH"
 
-restore() { git reset -q -- shell/index.html 2>/dev/null; git checkout -q -- tools/author.py tools/model_workspace.py model/corpus.json model/publish.json model/objects/publish/hello.holo core/src/holo/archive.rs shell/index.html src/Dyad.lex.tex src/Workspace.lex.tex lexlean.lock shell/brand.css shell/appearance.css shell/host.js vendor/hologram-brand-kit/tokens/hologram-tokens.json 2>/dev/null; python3 tools/author.py >/dev/null; "$LX" lock >/dev/null 2>&1 || true; }
+restore() { git reset -q -- shell/index.html 2>/dev/null; git checkout -q -- tools/author.py tools/model_workspace.py model/corpus.json model/publish.json model/objects/publish/hello.holo core/src/holo/archive.rs shell/index.html src/Forge.lex.tex src/Workspace.lex.tex lexlean.lock shell/brand.css shell/appearance.css shell/host.js vendor/hologram-brand-kit/tokens/hologram-tokens.json 2>/dev/null; python3 tools/author.py >/dev/null; "$LX" lock >/dev/null 2>&1 || true; }
 expect_fail() { if "$@" >/tmp/plant.log 2>&1; then echo "GATE DID NOT FIRE: $*"; tail -5 /tmp/plant.log; restore; exit 1; else echo "gate fired as it must: $*"; grep -m1 -E "error|violat|differ|drift|FAILED|panicked" /tmp/plant.log || tail -2 /tmp/plant.log; fi; }
 
 case "${1:-}" in
@@ -55,7 +55,7 @@ EOF
     # commit would stage it; an unstaged edit is simply overwritten by the projector.
     sed -i 's/<h1>Own Your Ideas<\/h1>/<h1>Own your ideas<\/h1>/' shell/index.html
     git add shell/index.html
-    expect_fail bash -c "DYAD_LANE_WORK=${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane} ./scripts/lane.sh"
+    expect_fail bash -c "FORGE_LANE_WORK=${FORGE_LANE_WORK:-$HOME/.cache/hologram-forge-lane} ./scripts/lane.sh"
     git reset -q -- shell/index.html ;;
   publish)
     python3 - <<'EOF'
@@ -73,7 +73,7 @@ EOF
     expect_fail bash -c "cd core && cargo test --release -q --test publish" ;;
   composer)
     sed -i 's/Exact Hologram v4 application composition and strict/Exact Hologram v4 application composition, and strict/' core/src/holo/archive.rs
-    expect_fail bash -c "DYAD_LANE_WORK=${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane} ./scripts/lane.sh" ;;
+    expect_fail bash -c "FORGE_LANE_WORK=${FORGE_LANE_WORK:-$HOME/.cache/hologram-forge-lane} ./scripts/lane.sh" ;;
   brand)
     sed -i '0,/--background: #f3f3ee;/s//--background: #f3f3ef;/' shell/brand.css
     expect_fail python3 tools/brand_kit.py --check ;;

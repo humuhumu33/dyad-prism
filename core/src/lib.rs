@@ -1,8 +1,8 @@
-//! The dyad-prism trust core, as Lean verified it.
+//! The hologram-forge trust core, as Lean verified it.
 //!
-//! Every body in `generated/dyad_core.rs` is the exact `prod-codegen`
+//! Every body in `generated/hologram_forge_core.rs` is the exact `prod-codegen`
 //! output from the LCNF export of the kernel checked module
-//! `PrismDyad.Dyad` (Lean 4.32.1, leanchecker replayed,
+//! `HologramForge.Forge` (Lean 4.32.1, leanchecker replayed,
 //! exact per declaration axiom sets), produced by `scripts/lane.sh` from the
 //! PrismPM commit in `PRISMPM_REV`. Nothing here is written by hand except
 //! this file, which only names the refusal type the generated code returns,
@@ -26,7 +26,7 @@ pub enum ComputeError {
     OutputTooSmall,
 }
 
-include!("../../generated/dyad_core.rs");
+include!("../../generated/hologram_forge_core.rs");
 
 /// PrismPM's diagnostics, verbatim (`crates/prismpm/src/error.rs`).
 #[allow(dead_code)]

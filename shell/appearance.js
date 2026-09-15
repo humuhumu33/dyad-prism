@@ -1,7 +1,7 @@
-// The appearance switch on Dyad's UI: Immersive, Dark, Light, the same canonical state and hooks
+// The appearance switch on the renderer's UI: Immersive, Dark, Light, the same canonical state and hooks
 // Hologram OS keeps (holo.theme.v1 on <html>: data-holo-palette, data-holo-immersive, --holo-wallpaper),
-// mirrored into Dyad's own theme (the dark or light class on <html>, and its localStorage "theme"),
-// and followed the other way when Dyad's settings page switches its theme. Adapters only.
+// mirrored into the renderer's own theme (the dark or light class on <html>, and its localStorage "theme"),
+// and followed the other way when the renderer's settings page switches its theme. Adapters only.
 const KEY = "holo.theme.v1";
 const $ = (id) => document.getElementById(id);
 const WALLS = JSON.parse($("wallpapers").textContent);
@@ -15,7 +15,7 @@ function applyTheme(s) {
   root.style.setProperty("color-scheme", palette);
   if (s.wallpaper) root.style.setProperty("--holo-wallpaper", `url(${JSON.stringify(s.wallpaper)})`);
   try { localStorage.setItem(KEY, JSON.stringify({ look: 3, ...s })); } catch (e) {}
-  // Dyad's theme follows the palette: its provider reads the class it set and its stored choice.
+  // the renderer's theme follows the palette: its provider reads the class it set and its stored choice.
   if (!root.classList.contains(palette)) { root.classList.remove("light", "dark"); root.classList.add(palette); }
   try { localStorage.setItem("theme", palette); } catch (e) {}
   const mode = s.immersive ? "immersive" : palette;
@@ -34,11 +34,11 @@ for (const b of document.querySelectorAll(".mode")) b.onclick = () => setMode(b.
 for (const b of document.querySelectorAll(".wall")) b.onclick = () => applyTheme({ palette: "dark", immersive: true, wallpaper: b.dataset.wall });
 applyTheme({ ...readTheme() });
 
-// When Dyad's own settings switch its theme class, the palette follows (and Immersive, which is a
+// When the renderer's own settings switch its theme class, the palette follows (and Immersive, which is a
 // dark look, steps aside for Light).
 new MutationObserver(() => {
   const s = readTheme();
-  const dyad = root.classList.contains("light") ? "light" : root.classList.contains("dark") ? "dark" : null;
-  if (!dyad || dyad === (s.palette === "light" ? "light" : "dark")) return;
-  applyTheme({ ...s, palette: dyad, immersive: dyad === "light" ? false : s.immersive });
+  const rtheme = root.classList.contains("light") ? "light" : root.classList.contains("dark") ? "dark" : null;
+  if (!rtheme || rtheme === (s.palette === "light" ? "light" : "dark")) return;
+  applyTheme({ ...s, palette: rtheme, immersive: rtheme === "light" ? false : s.immersive });
 }).observe(root, { attributes: true, attributeFilter: ["class"] });

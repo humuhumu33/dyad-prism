@@ -1,4 +1,4 @@
-"""Extract Dyad's text tag build prompt into shell/prompts.js, verbatim (Apache 2.0).
+"""Extract the renderer's text tag build prompt into shell/prompts.js, verbatim (Apache 2.0).
 
 The constants BUILD_SYSTEM_PREFIX, BUILD_SYSTEM_POSTFIX and DEFAULT_AI_RULES in
 vendor/dyad/src/prompts/system_prompt.ts teach the model the <dyad-write> family the renderer already
@@ -21,7 +21,7 @@ def const(name):
 
 prefix, postfix, rules = const("BUILD_SYSTEM_PREFIX"), const("BUILD_SYSTEM_POSTFIX"), const("DEFAULT_AI_RULES")
 lines = [
-    "// Dyad's build prompt for the text tag path (Apache 2.0, dyad-sh/dyad 00d5f5af7fd0,",
+    "// the renderer's build prompt for the text tag path (Apache 2.0, dyad-sh/dyad 00d5f5af7fd0,",
     "// src/prompts/system_prompt.ts: BUILD_SYSTEM_PREFIX, BUILD_SYSTEM_POSTFIX, DEFAULT_AI_RULES), extracted",
     "// verbatim by scripts/extract_prompts.py so the model emits <dyad-write> blocks the renderer already renders.",
     "export const BUILD_SYSTEM_PREFIX = " + json.dumps(prefix, ensure_ascii=False) + ";",

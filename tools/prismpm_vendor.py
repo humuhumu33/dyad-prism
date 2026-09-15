@@ -15,7 +15,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 prismpm = pathlib.Path(sys.argv[1])
 record = root / "tools" / "prismpm_vendor.sha256"
 FILES = ["error.rs", "holo/archive.rs", "holo/canonical.rs", "holo/model_document.rs", "holo/validate.rs"]
-NOTE = "//! dyad-prism: PrismPM's"
+NOTE = "//! hologram-forge: PrismPM's"
 
 
 def normalised(path, text):

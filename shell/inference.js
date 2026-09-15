@@ -51,7 +51,7 @@ export async function kappa(bytes) { return (await kappaReady())(bytes); }
 
 // ---- the device store: one database for the builder and the seals. Seals are rows keyed by κ,
 // indexed by kind and by memo prompt κ; the builder's own stores sit beside them.
-export const DB = "dyad-prism", DB_VERSION = 2;
+export const DB = "hologram-forge", DB_VERSION = 2;
 export const STORES = ["settings", "apps", "chats", "files", "objects", "refs", "versions", "audit"];
 let dbHandle = null;
 export function db() {
@@ -82,7 +82,7 @@ async function byPrompt(promptKappa) {
   return new Promise((res, rej) => { const r = d.transaction("seals").objectStore("seals").index("promptKappa").getAll(promptKappa); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
 }
 
-// ---- settings: Dyad's own record, one place for the key and the chosen model
+// ---- settings: the renderer's own record, one place for the key and the chosen model
 export async function settingsGet() { const d = await db(); return new Promise((res, rej) => { const r = d.transaction("settings").objectStore("settings").get("user"); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); }); }
 export async function settingsPut(s) { const d = await db(); await new Promise((res, rej) => { const t = d.transaction("settings", "readwrite"); t.objectStore("settings").put(s, "user"); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
 export async function deviceKeyGet() { const s = await settingsGet(); const v = s && s.providerSettings && s.providerSettings.openrouter && s.providerSettings.openrouter.apiKey && s.providerSettings.openrouter.apiKey.value; return v ? String(v) : ""; }
@@ -97,7 +97,7 @@ export function siteKeyReady() {
 export async function keyGet() { return (await deviceKeyGet()) || (await siteKeyReady()); }
 export async function keySet(value) { const s = (await settingsGet()) || {}; s.providerSettings = { ...(s.providerSettings || {}), openrouter: { ...((s.providerSettings || {}).openrouter || {}), apiKey: { value } } }; await settingsPut(s); }
 // Who answers: local (the Q engine) or paid (an OpenRouter model). Read from and written to the same
-// selectedModel Dyad's settings page and composer use.
+// selectedModel the renderer's settings page and composer use.
 export const MODEL_ID = "webgpu:BitNet";
 export const paidId = (model) => model.replace(/^openrouter\//, "");
 export async function readWho() {
@@ -291,7 +291,7 @@ const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 export async function paidGenerate(body, onDelta, signal) {
   const c = await coreReady(); const key = await keyGet(); const V = await viewReady();
   const bytes = c.run({ op: "encode-openrouter-request", model: paidId(body.model), request: body, stream: true }).bytes;
-  const r = await fetch(OPENROUTER, { method: "POST", signal, headers: { Authorization: "Bearer " + key, "content-type": "application/json", "HTTP-Referer": location.origin, "X-Title": "dyad-prism" }, body: bytes });
+  const r = await fetch(OPENROUTER, { method: "POST", signal, headers: { Authorization: "Bearer " + key, "content-type": "application/json", "HTTP-Referer": location.origin, "X-Title": "hologram-forge" }, body: bytes });
   if (!r.ok) {
     let msg = ""; try { msg = (await r.json()).error.message; } catch (e) {}
     const word = r.status === 401 ? V.noKeyLabel : r.status === 402 ? V.noCreditLabel : V.providerBusyLabel;

@@ -1,4 +1,4 @@
-// dyad-prism (ours, not Dyad's; see VENDORED.md): Dyad's renderer built for the shell, the vendored
+// hologram-forge (ours, not Dyad's; see VENDORED.md): Dyad's renderer built for the shell, the vendored
 // Vite config unchanged plus fixed output names, so the projected shell/index.html (written by the
 // core from the verified View) can reference assets/index.js and assets/index.css without knowing a
 // content hash. Lives beside the vendored config so Vite resolves Dyad's modules. Run from vendor/dyad:

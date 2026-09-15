@@ -25,7 +25,7 @@ def q(v):
 
 def preimage(application, version, closure, attestation):
     # publishPreimage: sorted keys, no spaces, PrismPM's canonical JSON of the record.
-    return '{"application":' + q(application) + ',"attestation":' + q(attestation) + ',"closure":' + q(closure) + ',"schema":"dyad-prism/published/1","version":' + q(version) + "}"
+    return '{"application":' + q(application) + ',"attestation":' + q(attestation) + ',"closure":' + q(closure) + ',"schema":"hologram-forge/published/1","version":' + q(version) + "}"
 
 
 def source_manifest(lean_manifest, coverage, kernel, model_id, semantic_id, source_id):

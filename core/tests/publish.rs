@@ -1,8 +1,8 @@
 //! Byte identity of the Publish rules on the corpus `tools/corpus_publish.py` writes to
 //! `model/publish.json`, and PrismPM's vendored composer on the committed archive vectors.
 
-use dyad_core::holo::archive::{compose_application, validate_application, ApplicationArchiveInput, ArchiveProvenance};
-use dyad_core::{holoPath, publishDecision, publishPreimage, sourceManifest, Decision};
+use hologram_forge_core::holo::archive::{compose_application, validate_application, ApplicationArchiveInput, ArchiveProvenance};
+use hologram_forge_core::{holoPath, publishDecision, publishPreimage, sourceManifest, Decision};
 use serde_json::Value;
 
 fn corpus() -> Vec<Value> {

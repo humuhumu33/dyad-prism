@@ -1,7 +1,7 @@
 //! The shell projector: renders the landing page and the shell's closure from the generated `view()`.
 //!
 //! An adapter, not the model: every visible word comes from the Lean verified `View` record; this
-//! file owns only markup. It writes `shell/index.html` (Dyad's UI at the root, with the appearance
+//! file owns only markup. It writes `shell/index.html` (the renderer's UI at the root, with the appearance
 //! switch: Immersive, Dark, Light), `shell/holo.html` (the runner for published
 //! applications), `shell/app.webmanifest`, `shell/v1/openapi.json`,
 //! `shell/manifest.json` (the hash list the service worker precaches from, so the shell is one
@@ -9,8 +9,8 @@
 //!
 //! Run from the repo root: cargo run --release --manifest-path core/Cargo.toml --bin project-shell
 
-use dyad_core::abi::view_json;
-use dyad_core::{encodeCompletion, encodeError, encodeModels, view, Completion};
+use hologram_forge_core::abi::view_json;
+use hologram_forge_core::{encodeCompletion, encodeError, encodeModels, view, Completion};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -25,11 +25,11 @@ fn esc(text: &str) -> String {
 }
 
 fn page() -> String {
-    // The homepage is Dyad's own UI, whole, at the root of the shell: its renderer is built by Vite
+    // The homepage is the renderer's own UI, whole, at the root of the shell: its renderer is built by Vite
     // into assets/ with fixed names (scripts/vite.shell.config.mts), the host runs first so
     // window.electron exists when the contracts read it, and the appearance switch from the
     // landing page stays: Immersive (a curated photo behind frosted panels), Dark, Light, kept as
-    // Hologram OS keeps it (holo.theme.v1) and mirrored into Dyad's own theme class.
+    // Hologram OS keeps it (holo.theme.v1) and mirrored into the renderer's own theme class.
     let v = view();
     let mut h = String::new();
     let _ = write!(
@@ -52,7 +52,7 @@ fn page() -> String {
 <script>
 // Pre paint appearance, the same canonical state Hologram OS keeps (holo.theme.v1: palette, immersive,
 // wallpaper) and the same hooks (data-holo-palette, data-holo-immersive, --holo-wallpaper, color-scheme),
-// mirrored into Dyad's theme class and its localStorage "theme", so the first frame already wears the
+// mirrored into the renderer's theme class and its localStorage "theme", so the first frame already wears the
 // chosen look. First run, and once for anyone who chose before look 3: immersive on the first curated
 // photo; Dark and Light are one click away.
 (function () {{
@@ -132,14 +132,14 @@ fn openapi() -> String {
     let doc = serde_json::json!({
         "openapi": "3.1.0",
         "info": {
-            "title": "dyad-prism",
+            "title": "hologram-forge",
             "version": "1",
             "summary": "OpenAI compatible chat completions served from the browser tab that has this page open.",
             "description": "Every answer carries a receipt (x-hologram-receipt, and hologram.receipt on the last streamed chunk). A repeated request is served from its seal on the device with x-hologram-reuse: 1. On this origin the service worker answers; on a machine, freeinference-relay.py (served by this page, SHA-256 in manifest.json) forwards http://127.0.0.1:11435/v1 to the tab and requires an Authorization header of any value. No server computes or stores anything."
         },
         "security": [{ "anyKey": [] }],
         "servers": [
-            { "url": "https://humuhumu33.github.io/dyad-prism/v1", "description": "the page's own origin, answered by the service worker while the page is open" },
+            { "url": "https://humuhumu33.github.io/hologram-forge/v1", "description": "the page's own origin, answered by the service worker while the page is open" },
             { "url": "http://127.0.0.1:11435/v1", "description": "the local relay, freeinference-relay.py from this page, for native clients" }
         ],
         "paths": {
@@ -175,7 +175,7 @@ fn openapi() -> String {
 /// Every file of the shell with its SHA-256, lexically ordered. Not in the closure: the worker and
 /// its template, this list, `provenance.json` (the closure digest is one of its fields; the worker
 /// precaches it beside this list), `warmup.json` (the site's included key, written at deploy time,
-/// never hashed into the closure), Dyad's renderer build under `assets/` and the staged `scaffold/` and
+/// never hashed into the closure), the renderer build under `assets/` and the staged `scaffold/` and
 /// `404.html` (written after the lane by the Pages workflow and content hashed by Vite already), and
 /// model weights, which live in the device store the engine keeps.
 fn manifest(shell: &Path) -> String {
@@ -207,7 +207,7 @@ fn manifest(shell: &Path) -> String {
         rows.push(serde_json::json!({ "path": name, "sha256": sha256(&bytes), "bytes": bytes.len() }));
     }
     let closure = sha256(serde_json::to_string(&rows).unwrap().as_bytes());
-    serde_json::json!({ "spec": "dyad-prism/shell/1", "closure": closure, "files": rows }).to_string() + "\n"
+    serde_json::json!({ "spec": "hologram-forge/shell/1", "closure": closure, "files": rows }).to_string() + "\n"
 }
 
 fn sha256(bytes: &[u8]) -> String {

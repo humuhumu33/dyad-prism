@@ -1,6 +1,6 @@
-name = "PrismDyad"
+name = "HologramForge"
 version = "0.1.0"
-defaultTargets = ["PrismDyad"]
+defaultTargets = ["HologramForge"]
 
 [[lean_lib]]
-name = "PrismDyad"
+name = "HologramForge"

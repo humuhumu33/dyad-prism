@@ -3,15 +3,15 @@
 Source of truth: vendor/hologram-brand-kit/tokens/hologram-tokens.json (W3C DTCG, the kit at the commit
 BRAND_KIT_REV pins). Nothing here names a colour, a font or a radius by hand: every value is read from
 the token sets `hologram-light`, `hologram-dark`, `core` and `global`, and the two derived layers
-(Immersive alpha on surfaces that sit on the photo; Dyad's literal palette classes remapped onto the
+(Immersive alpha on surfaces that sit on the photo; the renderer's literal palette classes remapped onto the
 kit's warm ramp) are arithmetic on those values, spelled once below.
 
 Writes
   shell/brand.css                  the fonts, the light and dark variables, the Immersive layer, the
                                    display and mono rules, the glass the appearance switch uses
-  vendor/dyad/hologram.theme.css   what the renderer build splices into Dyad's globals.css: the same
+  vendor/dyad/hologram.theme.css   what the renderer build splices into the renderer's globals.css: the same
                                    variables, plus a Tailwind @theme block that remaps every palette
-                                   family Dyad's screens name (blue, purple, gray, ...) onto the kit's
+                                   family the renderer's screens name (blue, purple, gray, ...) onto the kit's
                                    warm ramp, floors text-xs at 14px, and names the display face
   shell/fonts/*, shell/mark.svg, shell/lockup-*.svg   copied from the vendored kit
 
@@ -44,17 +44,17 @@ RAMP = {
     "400": LIGHT["ring"], "500": DARK["ring"], "600": LIGHT["muted-foreground"], "700": DARK["chart-5"],
     "800": LIGHT["foreground"], "900": DARK["card"], "950": DARK["background"],
 }
-# Families Dyad's screens name; every hue but red becomes the warm ramp (the kit has one accent, used
+# Families the renderer's screens name; every hue but red becomes the warm ramp (the kit has one accent, used
 # once per view, and the roles it lacks, success and warning, are UPSTREAM.md entries).
 QUIET = ["gray", "zinc", "slate", "neutral", "stone", "blue", "indigo", "violet", "purple", "sky", "teal", "cyan", "fuchsia", "pink", "rose", "lime", "emerald", "green", "amber", "yellow", "orange"]
 RED = {"50": RAMP["50"], "100": RAMP["100"], "200": RAMP["200"], "300": CORE["red"]["400"], "400": CORE["red"]["400"], "500": CORE["red"]["600"],
        "600": CORE["red"]["600"], "700": CORE["red"]["600"], "800": CORE["red"]["600"], "900": CORE["red"]["600"], "950": CORE["red"]["600"]}
-# Arbitrary hex classes Dyad uses for its Pro accent: the foreground, never a second accent.
+# Arbitrary hex classes the renderer uses for its Pro accent: the foreground, never a second accent.
 ARBITRARY = {"#6c55dc": "foreground", "#7f22fe": "foreground"}
 
 # ---- Immersive: the photo unfaded behind a transparent main surface; glass on what carries text.
 # Alpha per surface, the smallest at which the pairs pass AA on the three curated photos (measured in
-# the browser; see HOLOGRAM/DYAD-BRAND-TOKENS-EVAL.md).
+# the browser; see HOLOGRAM/FORGE-BRAND-TOKENS-EVAL.md).
 ALPHA = {"background": 0.0, "sidebar": 0.62, "card": 0.74, "popover": 0.94, "muted": 0.7, "accent": 0.7, "secondary": 0.7}
 
 
@@ -76,7 +76,7 @@ def variables(colours, dark):
     v["font-mono"] = FONT["mono"]
     v["tracking-display"] = TRACKING["display"]
     v["tracking-caps"] = TRACKING["caps"]
-    # Dyad's own extras, each a kit value: the ramps its docs and panels use, the docs ground.
+    # the renderer's own extras, each a kit value: the ramps its docs and panels use, the docs ground.
     if dark:
         v.update({"background-lightest": colours["secondary"], "background-lighter": colours["card"], "background-darker": colours["background"], "background-darkest": CORE["neutral"]["950"], "docs-bg": colours["muted"], "destructive-foreground": colours["destructive"]})
     else:

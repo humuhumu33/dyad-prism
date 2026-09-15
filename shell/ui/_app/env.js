@@ -1,1 +1,1 @@
-export const env={"PUBLIC_BASE_PATH":"/dyad-prism/ui"}
+export const env={"PUBLIC_BASE_PATH":"/hologram-forge/ui"}

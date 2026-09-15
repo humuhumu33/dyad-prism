@@ -1,6 +1,6 @@
 //! Public registered Prism diagnostics and structured underlying causes.
 //!
-//! dyad-prism: PrismPM's `crates/prismpm/src/error.rs` at the pinned commit with one function removed,
+//! hologram-forge: PrismPM's `crates/prismpm/src/error.rs` at the pinned commit with one function removed,
 //! `PrismError::from_lexlean`, which converts LexLean's error type and would pull the LexLean crate into
 //! the core; the composer never calls it. `tools/prismpm_vendor.py` checks this file against PrismPM's
 //! with that one function removed from both.

@@ -6,14 +6,14 @@
 #   LANE_WRITE=1 ./scripts/lane-wsl.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COPY="${DYAD_LANE_COPY:-$HOME/dyad-prism-lane}"
+COPY="${FORGE_LANE_COPY:-$HOME/hologram-forge-lane}"
 mkdir -p "$COPY"
 # A renderer build running beside the lane leaves files that vanish mid copy (rsync code 24); harmless.
 rsync -a --delete --exclude .git --exclude node_modules --exclude core/target --exclude shell/app --exclude shell/assets --exclude shell/scaffold --exclude shell/warmup.json --exclude .lexlean --exclude .prism --exclude '*.timestamp-*' "$ROOT/" "$COPY/" || [ "$?" = 24 ]
 cd "$COPY"
 git init -q 2>/dev/null || true
 git add -A >/dev/null 2>&1 && git -c user.email=lane@local -c user.name=lane commit -q -m mirror --allow-empty >/dev/null 2>&1 || true
-DYAD_LANE_WORK="${DYAD_LANE_WORK:-$HOME/.cache/dyad-prism-lane}" ./scripts/lane.sh
+FORGE_LANE_WORK="${FORGE_LANE_WORK:-$HOME/.cache/hologram-forge-lane}" ./scripts/lane.sh
 # What the lane writes, back to the checkout (compare mode writes only shell/core.wasm and the projection).
 rsync -a "$COPY/generated/" "$ROOT/generated/"
 rsync -a "$COPY/tools/axioms.json" "$ROOT/tools/axioms.json"
