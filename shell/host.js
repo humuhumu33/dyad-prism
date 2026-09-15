@@ -69,8 +69,17 @@ for (const c of ["window-infrastructure:set-focused", "window-infrastructure:set
 handlers.set("does-release-note-exist", () => ({ exists: false }));
 handlers.set("get-user-budget", () => null);
 handlers.set("get-subscription-status", () => null);
-handlers.set("get-custom-apps-folder", () => ({ path: null, isCustom: false }));
+// Apps live in this browser's store, not in a folder: the path is the store's name and it is not a
+// place the visitor can point elsewhere.
+handlers.set("get-custom-apps-folder", () => ({ path: inference.DB, isPathAvailable: true, isPathDefault: true }));
 handlers.set("get-node-path", () => null);
+// What this build is, for the settings page's own debug panel: no Node, no auto updater, the engine
+// named where a Node path would be, and the chosen model as the renderer spells it.
+handlers.set("get-system-debug-info", async () => {
+  const s = (await get("settings", "user")) || DEFAULT_SETTINGS;
+  const m = s.selectedModel || {};
+  return { nodeVersion: null, pnpmVersion: null, nodePath: "esbuild in the tab", telemetryId: "web", telemetryConsent: "opted_out", telemetryUrl: "", dyadVersion: "1.15.0-web", platform: "web", architecture: navigator.userAgent.includes("WOW64") || navigator.userAgent.includes("x86_64") ? "x86_64" : "unknown", logs: "", updaterLogs: null, selectedLanguageModel: (m.provider ? m.provider + "/" : "") + (m.name || "") };
+});
 const OPENROUTER = { id: "openrouter", name: "OpenRouter", hasFreeTier: true, websiteUrl: "https://openrouter.ai/settings/keys", gatewayPrefix: "openrouter/", type: "cloud" };
 const OPENROUTER_MODELS = [
   { apiName: "openrouter/free", displayName: "Free router", description: "Whatever free model OpenRouter routes to", contextWindow: 128000 },
@@ -96,7 +105,7 @@ handlers.set("validate-provider-api-key", async ({ provider, apiKey }) => {
 });
 handlers.set("prompts:list", () => []);
 handlers.set("list-all-media", () => ({ apps: [] }));
-handlers.set("free-agent-quota:get-status", () => ({ messagesUsed: 0, messagesLimit: 5, isQuotaExceeded: false, windowStartTime: null, resetTime: null }));
+handlers.set("free-agent-quota:get-status", () => ({ messagesUsed: 0, messagesLimit: 5, isQuotaExceeded: false, windowStartTime: null, resetTime: null, hoursUntilReset: null }));
 handlers.set("get-themes", () => []);
 handlers.set("get-custom-themes", () => []);
 handlers.set("user-input:get-pending", () => []);
@@ -143,7 +152,7 @@ async function loadScaffold() {
   return (scaffold = files);
 }
 handlers.set("list-apps", async () => ({ apps: (await all("apps")).map(withDates) }));
-handlers.set("get-app", async (id) => { const a = await get("apps", id); if (!a) throw new Error("no app " + id); return { ...withDates(a), files: await filesOf(id), frameworkType: "react-vite", supabaseProjectName: null, vercelTeamSlug: null }; });
+handlers.set("get-app", async (id) => { const a = await get("apps", id); if (!a) throw new Error("no app " + id); return { ...withDates(a), files: await filesOf(id), frameworkType: "vite", supabaseProjectName: null, vercelTeamSlug: null }; });
 handlers.set("check-app-name", async ({ appName }) => ({ exists: (await all("apps")).some((a) => a.name === appName) }));
 handlers.set("preview-app-folder-name", async ({ appName }) => ({ folderName: appName }));
 handlers.set("create-app", async ({ name, initialChatMode }) => {
@@ -172,7 +181,31 @@ handlers.set("appCollections:list", () => []);
 // address only when its bytes re-derive to it (the core's restore rule).
 handlers.set("list-versions", async ({ appId }) => (await get("versions", appId)) || []);
 handlers.set("get-current-branch", async () => ({ branch: "main" }));
-handlers.set("get-version-changes", async () => ({ files: [] }));
+// What a version changed, computed from the addresses themselves: a version is the preimage of the
+// project state (its JSON lists every file as [path, kappa, bytes] with the parent's address), and
+// every file's bytes are an object at their own address, so the diff against the parent is a walk of
+// two entry lists. Nothing is stored twice for this.
+async function snapshotOf(oid) {
+  if (!oid) return null;
+  const bytes = await get("objects", oid);
+  if (!bytes) return null;
+  try { const snap = JSON.parse(dec.decode(bytes)); return Array.isArray(snap.entries) ? snap : null; } catch (e) { return null; }
+}
+const contentAt = async (kappa) => { const b = kappa ? await get("objects", kappa) : null; return b ? dec.decode(b) : ""; };
+handlers.set("get-version-changes", async ({ versionId }) => {
+  const snap = await snapshotOf(versionId);
+  if (!snap) return [];
+  const before = new Map((((await snapshotOf(snap.parent)) || {}).entries || []).map(([path, kappa]) => [path, kappa]));
+  const now = new Map(snap.entries.map(([path, kappa]) => [path, kappa]));
+  const changes = [];
+  for (const [path, kappa] of now) {
+    const old = before.get(path);
+    if (old === kappa) continue;
+    changes.push({ path, type: old ? "modified" : "added", oldContent: await contentAt(old), newContent: await contentAt(kappa) });
+  }
+  for (const [path, kappa] of before) if (!now.has(path)) changes.push({ path, type: "deleted", oldContent: await contentAt(kappa), newContent: "" });
+  return changes.sort((x, y) => (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
+});
 handlers.set("set-version-favorite", async ({ appId, oid, isFavorite }) => { const v = (await get("versions", appId)) || []; for (const x of v) if (x.oid === oid) x.isFavorite = isFavorite; await put("versions", appId, v); });
 handlers.set("set-version-note", async ({ appId, oid, note }) => { const v = (await get("versions", appId)) || []; for (const x of v) if (x.oid === oid) x.note = note; await put("versions", appId, v); });
 async function restore(appId, oid) {
@@ -194,14 +227,28 @@ handlers.set("checkout-version", async ({ appId, versionId }) => { await restore
 handlers.set("revert-version", async ({ appId, previousVersionId }) => { await restore(appId, previousVersionId); await seal(appId, "Revert to " + previousVersionId.slice(0, 22)); return { successMessage: "Reverted" }; });
 
 // ---- chats as records; the stream is the next slice
-handlers.set("get-chats", async (appId) => (await all("chats")).filter((c) => appId == null || c.appId === appId).map((c) => ({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()) })));
+handlers.set("get-chats", async (appId) => (await all("chats")).filter((c) => appId == null || c.appId === appId).map((c) => ({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()), chatMode: c.chatMode || "build", isFavorite: !!c.isFavorite })));
 handlers.set("get-chat", async (id) => { const c = await get("chats", id); if (!c) throw new Error("no chat " + id); return { ...c, chatMode: c.chatMode || "build", referencedApps: c.referencedApps || [], messages: (c.messages || []).map((x) => ({ ...x, createdAt: x.createdAt || now() })) }; });
 handlers.set("get-chat-metadata", async (id) => { const c = await get("chats", id); return c ? { id: c.id, appId: c.appId, title: c.title } : null; });
 handlers.set("create-chat", async (appId) => { const id = await nextId("chats"); await put("chats", id, { id, appId, title: "New chat", messages: [], initialCommitHash: null, dbTimestamp: null, chatMode: "build", modelSelection: null, referencedApps: [] }); return id; });
 handlers.set("update-chat", async ({ chatId, title }) => { const c = await get("chats", chatId); if (c && title) c.title = title; if (c) await put("chats", chatId, c); });
 handlers.set("delete-chat", async (id) => { await del("chats", id); });
 handlers.set("search-chats", () => []);
-handlers.set("chat:count-tokens", () => ({ totalTokens: 0, messageHistoryTokens: 0, codebaseTokens: 0, mentionedAppsTokens: 0, inputTokens: 0, systemPromptTokens: 0, contextWindow: 128000 }));
+// Counted where it matters: the codebase and the prompt are what a build turn actually sends, and the
+// window is the chosen model's own, so the renderer's context meter tells the truth.
+handlers.set("chat:count-tokens", async ({ chatId, input }) => {
+  const chat = chatId != null ? await get("chats", chatId) : null;
+  const settings = (await get("settings", "user")) || DEFAULT_SETTINGS;
+  const chosen = (chat && chat.modelSelection && chat.modelSelection.provider ? chat.modelSelection : settings.selectedModel) || {};
+  const models = chosen.provider === "openrouter" ? OPENROUTER_MODELS : LOCAL_MODELS;
+  const contextWindow = (models.find((m) => m.apiName === chosen.name) || models[0] || { contextWindow: 4096 }).contextWindow;
+  const tokens = (text) => Math.ceil(String(text || "").length / 4);
+  const codebaseTokens = chat && chat.appId != null ? tokens(await codebaseOf(chat.appId)) : 0;
+  const systemPromptTokens = tokens(buildSystemPrompt(chat && chat.appId != null ? await get("files", chat.appId + ":AI_RULES.md") : ""));
+  const messageHistoryTokens = ((chat && chat.messages) || []).reduce((n, m) => n + tokens(m.content), 0);
+  const inputTokens = tokens(input);
+  return { estimatedTotalTokens: codebaseTokens + systemPromptTokens + messageHistoryTokens + inputTokens, actualMaxTokens: null, messageHistoryTokens, codebaseTokens, mentionedAppsTokens: 0, inputTokens, systemPromptTokens, contextWindow };
+});
 
 // ---- the app run machine. Dyad's renderer talks to app running as a remote machine: it subscribes
 // to a key and dispatches intents; the host owns the state and publishes snapshots. Here START builds
@@ -549,11 +596,25 @@ handlers.set("chat:observe-submission-stop-policy", (chatId) => chatMachineOf(ch
 handlers.set("chat:cancel", (chatId) => { const m = chatMachineOf(chatId); if (m.abort) m.abort.abort(); });
 
 // ---- the surface
+// Every answer is checked against the channel's own contract, which the renderer publishes on the page
+// (vendor/dyad/hologram.contracts.ts). Dyad's renderer validates nothing it receives, so a wrong shape
+// used to reach a screen and crash it far from the cause ("is not iterable"). A disagreement is named
+// in the console, and an array the renderer will iterate is answered with an empty one rather than a
+// value it cannot walk: a screen renders empty instead of dying.
+function checked(channel, value) {
+  const schema = window.__contracts && window.__contracts[channel];
+  if (!schema) return value;
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return value;
+  const iterable = Array.isArray(value) || value == null;
+  console.error("[host] the answer for", channel, "does not match its contract", parsed.error && parsed.error.issues ? parsed.error.issues.slice(0, 3) : parsed.error, value);
+  return iterable ? value : (schema._def && (schema._def.type === "array" || schema._def.typeName === "ZodArray") ? [] : value);
+}
 function dispatch(channel, args) {
   const n = (seen.get(channel) || 0) + 1; seen.set(channel, n);
   const h = handlers.get(channel);
   if (!h) { if (n === 1) console.warn("[host] no handler:", channel, args[0]); return Promise.resolve(fail("no browser handler for " + channel)); }
-  return Promise.resolve().then(() => h(...args)).then(ok, (e) => { console.warn("[host]", channel, e); return fail(String((e && e.message) || e), "internal"); });
+  return Promise.resolve().then(() => h(...args)).then((value) => ok(checked(channel, value)), (e) => { console.warn("[host]", channel, e); return fail(String((e && e.message) || e), "internal"); });
 }
 // Every stored file's bytes are also an object at their own address, so a restore can find them.
 const originalPut = put;

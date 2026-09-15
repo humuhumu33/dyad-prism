@@ -23,6 +23,7 @@ import base from "./vite.renderer.config.mts";
 const src = path.resolve(__dirname, "src").replace(/\\/g, "/");
 const mark = path.resolve(__dirname, "../../shell/mark.svg");
 const picker = path.resolve(__dirname, "hologram.ModelPicker.tsx");
+const contracts = path.resolve(__dirname, "hologram.contracts.ts").split(path.sep).join("/");
 const theme = fs.readFileSync(path.resolve(__dirname, "hologram.theme.css"), "utf8");
 const arbitrary: Record<string, string> = JSON.parse(fs.readFileSync(path.resolve(__dirname, "hologram.arbitrary.json"), "utf8"));
 
@@ -91,6 +92,10 @@ const hologramWords: Plugin = {
     // hands the screenshot back as an attachment), so the gate would put a subscription screen in
     // front of a feature that works.
     if (file.endsWith("/preview_panel/PreviewIframe.tsx")) out = out.replace("{userBudget ? (", "{true ? (");
+    // The contracts are published to the page so the host can check its own answers against them
+    // (see hologram.contracts.ts). First import in the entry, before anything renders.
+    if (file.endsWith("/renderer.tsx")) out = `import ${JSON.stringify(contracts)};
+` + out;
     for (const [hex, role] of Object.entries(arbitrary)) out = out.split(`text-[${hex}]`).join(`text-${role}`).split(`bg-[${hex}]`).join(`bg-${role}`).split(`border-[${hex}]`).join(`border-${role}`);
     return out === code ? null : { code: out, map: null };
   },
