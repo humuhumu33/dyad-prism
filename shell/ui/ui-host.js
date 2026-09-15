@@ -35,8 +35,8 @@ if (!navigator.serviceWorker.controller) {
 sessionStorage.removeItem(RELOADED);
 
 const bar = document.createElement("div");
-bar.hidden = true;
-bar.style.cssText = "position:fixed;top:.75rem;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:.75rem;width:min(22rem,calc(100vw - 2rem));padding:.5rem .85rem;border-radius:.625rem;font:500 12px/1.5 Geist,system-ui,sans-serif;background:hsl(var(--color-shade-0));color:hsl(var(--color-text-shade-1));border:1px solid hsl(var(--color-shade-5))";
+bar.hidden = true;   // the attribute alone would lose to the inline display below; show() sets both
+bar.style.cssText = "display:none;position:fixed;top:.75rem;left:50%;transform:translateX(-50%);z-index:60;align-items:center;gap:.75rem;width:min(22rem,calc(100vw - 2rem));padding:.5rem .85rem;border-radius:.625rem;font:500 12px/1.5 Geist,system-ui,sans-serif;background:hsl(var(--color-shade-0));color:hsl(var(--color-text-shade-1));border:1px solid hsl(var(--color-shade-5))";
 const label = document.createElement("span");
 label.style.cssText = "white-space:nowrap";
 const track = document.createElement("span");
@@ -48,8 +48,9 @@ bar.append(label, track);
 document.body.prepend(bar);
 
 function show(word) {
-  if (!word) { bar.hidden = true; return; }
+  if (!word) { bar.hidden = true; bar.style.display = "none"; return; }
   bar.hidden = false;
+  bar.style.display = "flex";
   label.textContent = word;
   const percent = /(\d+)%/.exec(word);
   fill.style.width = percent ? percent[1] + "%" : "0";
