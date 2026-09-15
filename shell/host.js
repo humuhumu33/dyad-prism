@@ -200,8 +200,7 @@ handlers.set("search-app-files", async ({ appId, query }) => {
   for (const p of await filesOf(appId)) {
     const snippets = [];
     if (needle) {
-      const lines = String((await get("files", appId + ":" + p)) || "").split("
-");
+      const lines = String((await get("files", appId + ":" + p)) || "").split(/\r?\n/);
       for (let i = 0; i < lines.length && snippets.length < 8; i += 1) {
         const at = lines[i].toLowerCase().indexOf(needle);
         if (at < 0) continue;
