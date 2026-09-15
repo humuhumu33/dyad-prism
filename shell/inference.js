@@ -202,13 +202,14 @@ async function residentModel(entry, word) {
   return { instance: await E.createEngine(entry, loaded), model: entry };
 }
 // The large model, loaded behind whatever is answering, then measured once and offered to the rule.
-function loadLarge() {
+function loadLarge(word) {
   if (engine.large || engine.largeLoading) return engine.largeLoading || Promise.resolve(engine.large);
   engine.largeLoading = (async () => {
     const { L } = await mods();
     const V = await viewReady();
     const entry = L.MODELS.find((m) => m.fam === "BitNet");
-    const held = await residentModel(entry, V.largerLoadingLabel);
+    // Behind the seed it is the larger model arriving; without a seed it is the only model there is.
+    const held = await residentModel(entry, word || V.largerLoadingLabel);
     engine.large = held;
     engine.onState("");
     const tokps = await measure(held);
@@ -261,7 +262,7 @@ export function gpuReady(id) {
     } catch (error) {
       // No seed (it is not published yet, or this device refused it): the large model is the only rung.
       engine.tier = "Large";
-      const held = await loadLarge();
+      const held = await loadLarge(V.loadingLabel);
       engine.instance = held.instance; engine.model = held.model;
     }
     engine.onState("");
