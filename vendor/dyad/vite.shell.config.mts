@@ -64,6 +64,33 @@ const hologramWords: Plugin = {
     // One mode is implemented here, the build turn that writes files, so the mode selector offers no
     // choice worth making: Dyad's agent and plan modes promise tool calls this host does not make.
     if (file.endsWith("/components/ChatInputControls.tsx")) out = out.replace("<ChatModeSelector />", "{null}");
+    // The promo row under the composer rotates Dyad's Pro upsells and links to Dyad's own GitHub,
+    // subreddit and X account: a subscription this product does not sell, and channels that are not
+    // Hologram's. The row is not rendered.
+    if (file.endsWith("/components/chat/ChatInput.tsx")) out = out.replace("{showPromo && <PromoMessage seed={promo.seed} />}", "{null}");
+    // The setup banner's own Pro pitch goes the same way: the trial card and the "tired of waiting"
+    // link are Dyad's subscription, while the provider buttons under them are what this product
+    // offers. The banner keeps its heading and those buttons.
+    if (file.endsWith("/components/SetupBanner.tsx")) {
+      out = out.replace("<SetupDyadProButton />", "{null}");
+      // The trial card is one <button> element: cut it with its matching close tag.
+      const at = out.indexOf("onClick={handleDyadProSetupClick}");
+      if (at < 0) throw new Error("SetupBanner: the trial card was not found");
+      const open = out.lastIndexOf("<button", at);
+      let depth = 0, i = open;
+      for (;;) {
+        const next = out.indexOf("<button", i + 1), end = out.indexOf("</button>", i + 1);
+        if (end < 0) throw new Error("SetupBanner: the trial card has no end");
+        if (next >= 0 && next < end) { depth += 1; i = next; continue; }
+        if (depth === 0) { i = end + "</button>".length; break; }
+        depth -= 1; i = end;
+      }
+      out = out.slice(0, open) + "{null}" + out.slice(i);
+    }
+    // Annotating a screenshot is Dyad's Pro gate on a paid budget; the annotator here is ours (it
+    // hands the screenshot back as an attachment), so the gate would put a subscription screen in
+    // front of a feature that works.
+    if (file.endsWith("/preview_panel/PreviewIframe.tsx")) out = out.replace("{userBudget ? (", "{true ? (");
     for (const [hex, role] of Object.entries(arbitrary)) out = out.split(`text-[${hex}]`).join(`text-${role}`).split(`bg-[${hex}]`).join(`bg-${role}`).split(`border-[${hex}]`).join(`border-${role}`);
     return out === code ? null : { code: out, map: null };
   },
