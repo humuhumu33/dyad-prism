@@ -13,6 +13,9 @@
 #   ./scripts/plant.sh hand      # type a colour into appearance.css by hand: the Brand gate must refuse
 #   ./scripts/plant.sh parse     # put a raw newline in a string in host.js: the Parse gate must refuse
 #   ./scripts/plant.sh hole      # drop a handler a screen reads on mount: the Contract gate must refuse
+# `hole` runs the Contract gate, which bundles the vendored contracts with the renderer's own esbuild,
+# so run it where those dependencies were installed for this platform -- otherwise esbuild refuses to
+# start and the gate looks like it fired when it never ran.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
