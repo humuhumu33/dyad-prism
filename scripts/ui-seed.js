@@ -15,9 +15,9 @@
       isVerified: new Date().toISOString(),
       isEnabled: true,
       label: "Hologram",
-      // The models this page answers from itself. The paid ones the endpoint also lists need a key,
-      // which is given on the homepage, not here; a visitor can clear this filter in the settings.
-      modelFilter: "webgpu:",
+      // The one model this page offers: the ladder, which is whatever rung the device has ready. The
+      // rungs and the paid models are listed too; a visitor can widen this filter in the settings.
+      modelFilter: "webgpu:Hologram",
     }]));
   } catch (error) {}
 })();

@@ -55,7 +55,7 @@ kit and keep Hollama's values. It also places the kit's six web fonts with their
 The chat app loads them as two script tags and knows nothing about them. The seed is a blocking classic
 script, because the app's entry runs while a module is still being fetched and would read an empty
 connection list: it writes the connection once (this origin's own endpoint, no key, the model filter
-`webgpu:` so the picker offers what this page answers from itself). The host is a module: it registers the shell's service worker (a visitor who arrives before it is
+`webgpu:Hologram` so the picker offers the ladder, the model that is whatever rung this device has ready). The host is a module: it registers the shell's service worker (a visitor who arrives before it is
 installed is controlled after one reload, and only that first install reloads), starts the engine so
 the model is loading before the visitor types, and shows the first download as a card at the top of
 the page. It names no colour: the card uses the kit's variables, which the page already defines.

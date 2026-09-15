@@ -47,9 +47,12 @@ const DEFAULT_SETTINGS = {
   previewIdleTimeoutPolicy: "default", nodeRuntimePreference: "system", disablePreviewNodeAutoInstall: true,
 };
 // A stored record from an earlier shell may lack a key a newer renderer reads (providerSettings, say): the
-// defaults fill what is missing, the record keeps what it has.
-handlers.set("get-user-settings", async () => ({ ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}) }));
-handlers.set("set-user-settings", async (patch) => { const s = { ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}), ...(patch || {}) }; await put("settings", "user", s); return s; });
+// defaults fill what is missing, the record keeps what it has. One mode is implemented here, the build
+// turn that writes files, so that is the mode the record always carries: an agent mode would promise
+// tool calls this host does not make.
+const BUILD_MODE = { selectedChatMode: "build", defaultChatMode: "build" };
+handlers.set("get-user-settings", async () => ({ ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}), ...BUILD_MODE }));
+handlers.set("set-user-settings", async (patch) => { const s = { ...DEFAULT_SETTINGS, ...((await get("settings", "user")) || {}), ...(patch || {}), ...BUILD_MODE }; await put("settings", "user", s); return s; });
 // What the renderer takes as "set up": the site's included key counts as OpenRouter's, the device's
 // GPU counts as the local provider's, so no connect dialog stands between the first prompt and the
 // answer. The values are words, never the key itself.
@@ -447,7 +450,9 @@ async function chatTurn(chatId, intent) {
     // The route table decides who answers: a sealed answer to the same request is served without
     // running anything; the device runs the Q engine; a paid model answers with the visitor's key;
     // NoKey, NoGpu and PaidOffline are answered with the View's words.
-    const body = { model, messages: request, max_tokens: 2048, temperature: "0.7" };
+    // A build turn writes whole files: a cap that cuts the answer mid tag leaves a corrupt project, so
+    // the paid route is given room for several files (the device's engine keeps its own smaller cap).
+    const body = { model, messages: request, max_tokens: paid ? 16384 : 2048, temperature: "0.7" };
     const hit = await lookup(body);
     const route = await routeOf(hit, body);
     const word = await refusalWord(route);

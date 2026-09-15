@@ -61,6 +61,9 @@ const hologramWords: Plugin = {
     // set up by the host), the Pro selector (Dyad's paid tier), and the voice to text button (Pro).
     if (file.endsWith("/pages/home.tsx")) out = out.replace(/\{!isSettingsLoading &&\s*!isLoadingLanguageModelProviders &&\s*!hasDyadProApiKey && \(/, "{false && (");
     if (file.endsWith("/components/ChatInputControls.tsx")) out = out.replace("<ProModeSelector />", "{null}");
+    // One mode is implemented here, the build turn that writes files, so the mode selector offers no
+    // choice worth making: Dyad's agent and plan modes promise tool calls this host does not make.
+    if (file.endsWith("/components/ChatInputControls.tsx")) out = out.replace("<ChatModeSelector />", "{null}");
     for (const [hex, role] of Object.entries(arbitrary)) out = out.split(`text-[${hex}]`).join(`text-${role}`).split(`bg-[${hex}]`).join(`bg-${role}`).split(`border-[${hex}]`).join(`border-${role}`);
     return out === code ? null : { code: out, map: null };
   },
