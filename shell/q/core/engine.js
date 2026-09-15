@@ -11,8 +11,7 @@
 // onToken callback and the running/handedOff flags by an AbortSignal, so output (and the
 // receipt κ) is identical to the original app.
 
-import { qvac_tokenize, qvac_continue, qvac_gpu_free, kappa } from "../pkg/holospaces_web.js";
-import { armTokenizer } from "./loader.js";
+import { qvac_tokenize, qvac_continue, kappa } from "../pkg/holospaces_web.js";
 import { clean, didHolo, kappaTokens, sealReceipt, verifyIntegrity, idBytes, kappaBytes } from "./kappa.js";
 
 const _perf = () => (typeof performance !== "undefined" ? performance.now() : 0);
@@ -52,12 +51,8 @@ export async function createEngine(modelEntry, loaded) {
   const _specQ = (() => { try { return typeof location !== "undefined" ? new URLSearchParams(location.search).get("spec") : null; } catch { return null; } })();
   let _pinLen = 0;       // KV-COMMONS prefix pin: length of the pinned shared prefix (0 = none). See pinPrefix/usePin below.
 
-  // The wasm tokenizer is one global (see loader.js armTokenizer): re-arm this model's header before every
-  // tokenize and detokenize; it is a header parse, milliseconds, and only when another model's header is armed.
-  const headerBytes = loaded.headerBytes || null;
-  const arm = () => { try { if (armTokenizer(headerBytes)) qvac_gpu_free(); } catch {} };
-  const tokenize = (text) => { try { arm(); return JSON.parse(qvac_tokenize(text)).ids || []; } catch { return []; } };
-  const detokenize = (ids) => { try { arm(); return clean(JSON.parse(qvac_continue(JSON.stringify(ids), 0, 0, 0, ids.length)).text || ""); } catch { return ""; } };
+  const tokenize = (text) => { try { return JSON.parse(qvac_tokenize(text)).ids || []; } catch { return []; } };
+  const detokenize = (ids) => { try { return clean(JSON.parse(qvac_continue(JSON.stringify(ids), 0, 0, 0, ids.length)).text || ""); } catch { return ""; } };
   const fingerprint = (ids) => kappa(idBytes(ids));   // live mind κ (blake3, from wasm)
 
   // Frame one user turn. Qwen2/3 use ChatML (its <|im_*|> markers are atomic BPE tokens);

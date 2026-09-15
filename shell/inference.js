@@ -130,15 +130,15 @@ export async function lookup(body) {
     }
     const { verifyIntegrity } = await import(new URL("q/core/kappa.js", BASE).href);
     if (!(await verifyIntegrity(receipt.value)).ok) continue;
-    return { hit: true, text: answer.value, receipt: m.value.receipt, rec: receipt.value, modelId: m.value.modelId || null, fingerprint: `${receipt.value.body["prov:used"]["holo:model"]};${receipt.value.body["prov:used"]["holo:engine"]}` };
+    return { hit: true, text: answer.value, receipt: m.value.receipt, rec: receipt.value, fingerprint: `${receipt.value.body["prov:used"]["holo:model"]};${receipt.value.body["prov:used"]["holo:engine"]}` };
   }
   return { hit: false, key };
 }
-export async function seal(body, rec, key, modelId) {
+export async function seal(body, rec, key) {
   const receipt = await sealPut("q-receipt", { id: rec.id, body: rec.body, text: rec.text, promptText: rec.promptText, ctxIds: rec.ctxIds, turnIds: rec.turnIds, outIds: rec.outIds, params: rec.params });
   const outputKappa = await sealPut("answer", rec.text);
   const used = rec.body["prov:used"] || {};
-  const memo = { iri: "https://freeinference.ai/memo/v1", model: [used["holo:model"], body.model], modelId: modelId || body.model, engineKappa: used["holo:engine"] || "", promptKappa: key.promptKappa, paramsKappa: key.paramsKappa, outputKappa, receipt };
+  const memo = { iri: "https://freeinference.ai/memo/v1", model: [used["holo:model"], body.model], engineKappa: used["holo:engine"] || "", promptKappa: key.promptKappa, paramsKappa: key.paramsKappa, outputKappa, receipt };
   await sealPut("memo", memo, { promptKappa: key.promptKappa });
   return receipt;
 }
@@ -150,138 +150,42 @@ export async function sealPaid(body, rec, key) {
   return receipt;
 }
 
-// ---- the engine: Hologram Q on WebGPU, resident across turns, warm KV as q-brain-fast does it.
-//
-// The ladder. A device that has never seen this page holds no weights, and the large model is 710 MB.
-// So the small one loads first and answers, the large one loads behind it, and the swap happens only
-// when the model's own `promote` rule says so: resident, and measured fast enough to be worth it. The
-// rule is verified (Object.promote, four theorems); nothing here decides it. A request that names the
-// large model directly is never laddered, so the homepage keeps answering with what it says it runs.
-export const LADDER_ID = "webgpu:Hologram";
-export const SEED_ID = "webgpu:SmolLM2";
-const idOf = (held) => (held && held.model && held.model.fam === "SmolLM2" ? SEED_ID : MODEL_ID);
-const PROMOTE_TOKPS = 8;   // the floor the large model must beat; the rule takes the answer, not the number
-// The seed's address. Its bytes are interchangeable wherever they are served (the file is content
-// addressed and every block is verified before it binds), so a mirror on this origin is the same model.
-const SEED = {
-  fam: "SmolLM2", name: "SmolLM2-360M-Instruct · seed",
-  kappaUrl: "https://huggingface.co/HOLOGRAMTECH/q-smollm2-360m/resolve/main",
-  holoUrl: "https://huggingface.co/HOLOGRAMTECH/q-smollm2-360m/resolve/main/q-smollm2-360m.v1.holo",
-  manifestKappa: "did:holo:sha256:07aff22ceecacedb78c1e408be015cd08516ad819b32c9da50f84fb6c13a9c23",
-  size: "0.21 GB", fmt: "q4 κ", cap: 400, ctx: 3000, kv4: true, gpu: true, gpuOnly: true, chat: true,
-  qwen: true, eosText: "<|im_end|>", rep: 1.05, kappa: true,
-};
-// On a developer machine the same bytes are served from this origin, so the ladder can be exercised
-// before the file is published. Anywhere else the address above is the only one.
-const LOCAL_SEED = typeof location !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
-  ? new URL("/seed/q-smollm2-360m.v1.holo", location.origin).href : null;
-const seedEntry = () => (LOCAL_SEED ? { ...SEED, holoUrl: LOCAL_SEED } : SEED);
-export const engine = { instance: null, model: null, mods: null, session: null, loading: null, onState: () => {}, onReady: () => {},
-                        tier: "Small", seed: null, large: null, largeLoading: null, promoted: false };
+// ---- the engine: Hologram Q on WebGPU, resident across turns, warm KV as q-brain-fast does it
+export const engine = { instance: null, model: null, mods: null, session: null, loading: null, onState: () => {}, onReady: () => {} };
 const sigOf = (list) => (list || []).map((m) => (m.role || "") + (m.content || "")).join("");
-const tailFor = (M, u) => M.llama3 ? `<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-${u || ""}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-` : null;
-async function mods() {
-  if (engine.mods) return engine.mods;
-  const q = (p) => new URL("q/core/" + p, BASE).href;
-  const [L, E, F] = await Promise.all([import(q("loader.js")), import(q("engine.js")), import(q("q-brain-fast.mjs"))]);
-  await L.ready();
-  return (engine.mods = { L, E, F });
-}
-// One model, resident. `word` is what the visitor is told while its bytes arrive.
-async function residentModel(entry, word) {
-  const { L, E } = await mods();
-  const loaded = await L.loadModel(entry, {
-    onStatus: () => engine.onState(word),
-    onProgress: (d, t) => engine.onState(t ? `${word} · ${Math.round((d / t) * 100)}%` : word),
-  });
-  if (!loaded || !loaded.gpu) throw new Error("model load failed");
-  return { instance: await E.createEngine(entry, loaded), model: entry };
-}
-// The large model, loaded behind whatever is answering, then measured once and offered to the rule.
-function loadLarge() {
-  if (engine.large || engine.largeLoading) return engine.largeLoading || Promise.resolve(engine.large);
-  engine.largeLoading = (async () => {
-    const { L } = await mods();
-    const V = await viewReady();
-    const entry = L.MODELS.find((m) => m.fam === "BitNet");
-    const held = await residentModel(entry, V.largerLoadingLabel);
-    engine.large = held;
-    engine.onState("");
-    const tokps = await measure(held);
-    const core = await coreReady();
-    const next = core.run({ op: "promote", current: engine.tier.toLowerCase(), largeResident: true, largeFast: tokps >= PROMOTE_TOKPS }).tier;
-    if (next === "Large" && engine.tier !== "Large") {
-      engine.tier = "Large"; engine.promoted = true; engine.session = null;
-      engine.instance = held.instance; engine.model = held.model;
-      engine.onState(V.promotedLabel); setTimeout(() => engine.onState(""), 4000);
-    }
-    return held;
-  })().catch((error) => { engine.largeLoading = null; throw error; });
-  return engine.largeLoading;
-}
-// Tokens per second on a short turn, so the rule is offered a measurement and not a guess. Twice: the
-// first turn after a model becomes resident pays for warm up, and that rate is not the one a visitor
-// will see. The second is what the rule is told.
-async function measure(held) {
-  try {
-    const { F } = await mods();
-    let ids = held.instance.tokenize(F.frameHistory(held.model, [{ role: "user", content: "Say ready." }]));
-    if (held.model.bos && held.instance.bosId != null) ids = [held.instance.bosId, ...ids];
-    let tokps = 0;
-    for (let turn = 0; turn < 2; turn++) {
-      let stats = null;
-      await withEngine(() => held.instance.generate(ids, { maxNew: 12, onToken: ({ stats: s }) => { if (s) stats = s; } }));
-      tokps = stats ? stats.tokps : 0;
-    }
-    return tokps;
-  } catch { return 0; }
-}
-// The engine a request is answered by. The ladder's id takes the tier; the large model's own id always
-// takes the large model, so a page that names it is never answered by something else.
-export async function heldFor(id) {
-  if (id === MODEL_ID) return await loadLarge();
-  await gpuReady(id);
-  return engine.tier === "Large" && engine.large ? engine.large : engine.seed || { instance: engine.instance, model: engine.model };
-}
-export function gpuReady(id) {
-  if (id === MODEL_ID) return loadLarge().then((held) => held.instance);
-  if (engine.instance) { loadLarge().catch(() => {}); return Promise.resolve(engine.instance); }
+const tailFor = (M, u) => M.llama3 ? `<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n${u || ""}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n` : null;
+export function gpuReady() {
+  if (engine.instance) return Promise.resolve(engine.instance);
   if (engine.loading) return engine.loading;
   engine.loading = (async () => {
+    const q = (p) => new URL("q/core/" + p, BASE).href;
+    const [L, E, F] = await Promise.all([import(q("loader.js")), import(q("engine.js")), import(q("q-brain-fast.mjs"))]);
+    engine.mods = { L, E, F }; engine.model = L.MODELS.find((m) => m.fam === "BitNet");
     const V = await viewReady();
-    engine.onState(V.loadingLabel);
-    try {
-      engine.seed = await residentModel(seedEntry(), V.loadingLabel);
-      engine.tier = "Small";
-      engine.instance = engine.seed.instance; engine.model = engine.seed.model;
-    } catch (error) {
-      // No seed (it is not published yet, or this device refused it): the large model is the only rung.
-      engine.tier = "Large";
-      const held = await loadLarge();
-      engine.instance = held.instance; engine.model = held.model;
-    }
+    engine.onState(V.loadingLabel); await L.ready();
+    const loaded = await L.loadModel(engine.model, {
+      onStatus: () => engine.onState(V.loadingLabel),
+      onProgress: (d, t) => engine.onState(t ? `${V.loadingLabel} · ${Math.round((d / t) * 100)}%` : V.loadingLabel),
+    });
+    if (!loaded || !loaded.gpu) throw new Error("model load failed");
+    engine.instance = await E.createEngine(engine.model, loaded);
     engine.onState("");
     engine.onReady();
-    if (engine.tier === "Small") loadLarge().catch(() => {});
     return engine.instance;
   })().catch((err) => { engine.loading = null; throw err; });
   return engine.loading;
 }
-export function gpuIds(inst, messages, entry = engine.model) {
+export function gpuIds(inst, messages) {
   const last = messages[messages.length - 1];
-  if (engine.session && engine.session.fam === entry.fam && messages.length >= 2 && last && last.role === "user") {
-    const tail = tailFor(entry, last.content);
+  if (engine.session && messages.length >= 2 && last && last.role === "user") {
+    const tail = tailFor(engine.model, last.content);
     if (tail != null && sigOf(messages.slice(0, -1)) === engine.session.sig) return { ids: engine.session.ids.concat(inst.tokenize(tail)), warm: true };
   }
-  let ids = inst.tokenize(engine.mods.F.frameHistory(entry, messages));
-  if (entry.bos && inst.bosId != null) ids = [inst.bosId, ...ids];
+  let ids = inst.tokenize(engine.mods.F.frameHistory(engine.model, messages));
+  if (engine.model.bos && inst.bosId != null) ids = [inst.bosId, ...ids];
   return { ids, warm: false };
 }
-export function rememberSession(messages, res, text, entry = engine.model) { if (res.ids && text && !res.error) engine.session = { ids: res.ids.slice(), fam: entry.fam, sig: sigOf(messages.concat([{ role: "assistant", content: text }])) }; }
+export function rememberSession(messages, res, text) { if (res.ids && text && !res.error) engine.session = { ids: res.ids.slice(), sig: sigOf(messages.concat([{ role: "assistant", content: text }])) }; }
 let gpuBusy = Promise.resolve();
 export function withEngine(fn) { const run = gpuBusy.then(fn, fn); gpuBusy = run.catch(() => {}); return run; }
 
@@ -333,9 +237,7 @@ async function requestOf(raw) {
   const messages = raw.messages.map((m) => ({ role: m.role || "user", content: Array.isArray(m.content) ? m.content.map((p) => (p && p.text) || "").join("\n") : String(m.content ?? "") }));
   const maxTokens = raw.max_completion_tokens ?? raw.max_tokens;
   const who = await readWho();
-  const model = typeof raw.model === "string" && raw.model.startsWith("openrouter/") ? raw.model
-    : raw.model === LADDER_ID ? LADDER_ID
-    : who.provider === "paid" ? "openrouter/" + (who.model || V.paidModels[0].id) : MODEL_ID;
+  const model = typeof raw.model === "string" && raw.model.startsWith("openrouter/") ? raw.model : who.provider === "paid" ? "openrouter/" + (who.model || V.paidModels[0].id) : MODEL_ID;
   return { model, messages, max_tokens: Number.isInteger(maxTokens) && maxTokens > 0 ? Math.min(maxTokens, 2048) : 512, temperature: raw.temperature == null ? "" : String(raw.temperature), seed: raw.seed };
 }
 export async function serve(raw, sink) {
@@ -349,8 +251,7 @@ export async function serve(raw, sink) {
   const word = await refusalWord(rt);
   if (word) return { status: rt === "NoKey" ? 401 : 503, bytes: wire("encode-error", { message: word, type: rt === "NoKey" ? "authentication_error" : "server_error" }), headers: {} };
   if (rt === "Serve") {
-    // A replay names the model whose answer it replays, not the rung this request asked for.
-    const c = completionOf("chatcmpl-" + hit.receipt.replace("blake3:", "").slice(0, 12), hit.text, hit.fingerprint, hit.receipt, hit.modelId || body.model);
+    const c = completionOf("chatcmpl-" + hit.receipt.replace("blake3:", "").slice(0, 12), hit.text, hit.fingerprint, hit.receipt, body.model);
     const headers = { "x-hologram-receipt": hit.receipt, "x-hologram-reuse": "1", "x-hologram-stream": sink ? "memo" : "plain", "x-hologram-provider": hit.paid ? "openrouter" : "local" };
     if (!sink) return { status: 200, bytes: wire("encode-completion", { completion: c }), headers };
     sink.head(headers);
@@ -371,22 +272,20 @@ export async function serve(raw, sink) {
     sink.frame(wire("encode-final", { completion: done })); sink.frame(wire("done"));
     return { status: 200, headers };
   }
-  const held = await heldFor(body.model);
-  const inst = held.instance;
+  const inst = await gpuReady();
   const messages = body.messages;
-  // The answer names the model that produced it, never the rung the request asked for.
-  const c = completionOf("chatcmpl-" + Math.random().toString(16).slice(2, 14), "", "", "", idOf(held));
+  const c = completionOf("chatcmpl-" + Math.random().toString(16).slice(2, 14), "", "", "");
   if (sink) { sink.head({ "x-hologram-stream": "native" }); sink.frame(wire("encode-role", { completion: c })); }
   let sent = "";
-  const { ids, warm } = gpuIds(inst, messages, held.model);
+  const { ids, warm } = gpuIds(inst, messages);
   const res = await withEngine(() => inst.generate(ids, { maxNew: body.max_tokens, onToken: ({ text }) => {
     if (sink && text.startsWith(sent) && text.length > sent.length) { sink.frame(wire("encode-delta", { completion: c, delta: text.slice(sent.length) })); sent = text; }
   } }));
   const text = (res.text || "").trim();
-  rememberSession(messages, res, text, held.model);
+  rememberSession(messages, res, text);
   const promptText = (messages.filter((m) => m.role === "user").slice(-1)[0] || {}).content || "";
   const rec = await inst.buildReceipt({ promptText, ctxIds: [], turnIds: ids, outIds: res.outIds });
-  const receipt = await seal(body, rec, hit.key, idOf(held));
+  const receipt = await seal(body, rec, hit.key);
   const used = rec.body["prov:used"] || {};
   const done = { ...c, text, fingerprint: `${used["holo:model"]};${used["holo:engine"]}`, receipt };
   const headers = { "x-hologram-receipt": receipt, "x-hologram-stream": sink ? "native" : "plain", "x-hologram-warm": warm ? "1" : "0" };
@@ -395,7 +294,7 @@ export async function serve(raw, sink) {
   sink.frame(wire("encode-final", { completion: done })); sink.frame(wire("done"));
   return { status: 200, headers };
 }
-export async function modelsBytes() { await coreReady(); const V = await viewReady(); return wire("encode-models", { ids: [LADDER_ID, MODEL_ID].concat(V.paidModels.map((m) => "openrouter/" + m.id)) }); }
+export async function modelsBytes() { await coreReady(); const V = await viewReady(); return wire("encode-models", { ids: [MODEL_ID].concat(V.paidModels.map((m) => "openrouter/" + m.id)) }); }
 
 // Transport 1: the service worker hands each /v1 request on this origin to this page over a
 // MessageChannel: {head:{status,headers}} once, then {frame} per wire frame, then {done}.

@@ -86,13 +86,6 @@ let _initOnce = null;
 export function ready() { if (!_initOnce) _initOnce = init().then(() => { try { qvac_panic_hook(); } catch {} }); return _initOnce; }
 export { qvac_tokenize, qvac_continue, kappa };
 
-// The wasm tokenizer is ONE global holding the last loaded model's vocabulary. Two resident engines (the
-// ladder's seed answering while a larger model loads behind it) would tokenize each other's text with the
-// wrong vocabulary. Every arming goes through here, so an engine can re-arm its own header before it
-// tokenizes. Measured on 2026-09-14 in the engine's own repository; ported here with the ladder.
-let _armedHeader = null;
-export function armTokenizer(headerBytes) { if (!headerBytes || _armedHeader === headerBytes) return false; qvac_load_gpu(headerBytes); _armedHeader = headerBytes; return true; }
-
 // ── browser-cache model manager (Cache API) — "Get" downloads + keeps; loading uses the copy ──
 export const MCACHE = "holo-q-models";
 const absUrl = (u) => new URL(u, location.href).href;
@@ -200,7 +193,6 @@ async function loadKappa(m, onStatus, onProgress) {
       if (_hdrKey) { try { _kvc.save(_hdrKey, headerBytes, { kind: "gguf-header", src: String(info.source || "") }); } catch {} }
     }
   }
-  _armedHeader = headerBytes;
   const lr = JSON.parse(qvac_load_gpu(headerBytes));
   if (lr.error) { onStatus("tokenizer error: " + lr.error); return null; }
   if (m.eosText) { try { const e = JSON.parse(qvac_tokenize(m.eosText)).ids; if (e && e.length === 1) lr.eos = e[0]; } catch {} }   // chat-stop override (e.g. LLaMA-3 <|eot_id|> ≠ header eos)
@@ -247,7 +239,7 @@ async function loadKappa(m, onStatus, onProgress) {
   try { if (_mk.holoStream) { const p = _mk.holoStream(); _mk.holoFirstTensorPct = p.marks.firstTensorPct; _mk.holoEnginePct = p.pct; } } catch {}
   window.__gpu = gpu;
   onStatus("");
-  return { gpu, info: lr, manifest, imageKappa: info.root || null, ld: modelLinkedData(m, info.root), headerBytes, ...(sealed ? { sealed } : {}) };
+  return { gpu, info: lr, manifest, imageKappa: info.root || null, ld: modelLinkedData(m, info.root), ...(sealed ? { sealed } : {}) };
 }
 
 // Very-large-model path: the GGUF never enters wasm; only the header does (tokenizer + manifest),
