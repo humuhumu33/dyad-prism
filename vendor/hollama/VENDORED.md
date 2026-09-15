@@ -23,7 +23,7 @@ Brand, in the sense of what a visitor sees:
 
 Arriving ready, because a demo that opens on a settings screen is not one:
 
-- `src/app.html`: one module script tag for `ui-host.js`, ours (see below).
+- `src/app.html`: two script tags for files of ours, `ui-seed.js` and `ui-host.js` (see below).
 - `src/routes/+page.svelte`: the entry goes to a new session rather than the session list, so the
   visitor lands in a chat. With no verified connection it still goes to the settings screen.
 - `src/routes/sessions/[id]/+page.svelte`: a session with no model of its own takes the first model
@@ -50,11 +50,12 @@ converted to the HSL triplets Hollama's Tailwind config consumes, the kit's alph
 over the kit's background first. Hollama's positive, warning and the muted tints have no token in the
 kit and keep Hollama's values. It also places the kit's six web fonts with their OFL file and the mark.
 
-## Ours, beside the build: `scripts/ui-host.js`
+## Ours, beside the build: `scripts/ui-seed.js` and `scripts/ui-host.js`
 
-The chat app loads it as one module script and knows nothing about it. It seeds the connection once
-(this origin's own endpoint, no key, the model filter `webgpu:` so the picker offers what this page
-answers from itself), registers the shell's service worker (a visitor who arrives before it is
+The chat app loads them as two script tags and knows nothing about them. The seed is a blocking classic
+script, because the app's entry runs while a module is still being fetched and would read an empty
+connection list: it writes the connection once (this origin's own endpoint, no key, the model filter
+`webgpu:` so the picker offers what this page answers from itself). The host is a module: it registers the shell's service worker (a visitor who arrives before it is
 installed is controlled after one reload, and only that first install reloads), starts the engine so
 the model is loading before the visitor types, and shows the first download as a card at the top of
 the page. It names no colour: the card uses the kit's variables, which the page already defines.

@@ -4,7 +4,8 @@
 # name Hologram. Reproducible: clone at HOLLAMA_REV, apply scripts/hollama-brand.patch (the source lines:
 # name strings, asset paths, links, the static adapter and base path, the prerendered metadata route),
 # run tools/kit-to-hsl.mjs (the colour variables from the kit's CSS, the fonts, the mark), place our own
-# scripts/ui-host.js beside them (the seeded connection, the worker, the engine, the download bar), build, copy.
+# scripts/ui-seed.js and scripts/ui-host.js beside them (the seeded connection, the worker, the engine
+# and the download bar), build, copy.
 #
 #   ./scripts/build-hollama.sh            # writes shell/ui/
 #
@@ -20,7 +21,7 @@ git -c advice.detachedHead=false clone -q https://github.com/fmaclen/hollama.git
 git -C "$WORK" checkout -q "$HOLLAMA_REV"
 git -C "$WORK" -c core.autocrlf=false apply --whitespace=nowarn "$ROOT/scripts/hollama-brand.patch"
 node "$ROOT/tools/kit-to-hsl.mjs" "$WORK"
-cp "$ROOT/scripts/ui-host.js" "$WORK/static/ui-host.js"
+cp "$ROOT/scripts/ui-seed.js" "$ROOT/scripts/ui-host.js" "$WORK/static/"
 (cd "$WORK" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && npm i --no-save --ignore-scripts --no-audit --no-fund --loglevel=error @sveltejs/adapter-static@3)
 (cd "$WORK" && MSYS_NO_PATHCONV=1 PUBLIC_BASE_PATH="$BASE_PATH" npm run build >/dev/null)
 rm -rf "$ROOT/shell/ui"

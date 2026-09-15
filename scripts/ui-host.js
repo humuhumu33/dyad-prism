@@ -2,34 +2,14 @@
 // script and knows nothing about it. `../` from here is the shell root, whatever subpath the site is
 // published under.
 //
-//   1. The connection is seeded once, to the endpoint this origin answers, with no key, so a visitor
-//      never opens the settings screen.
-//   2. The shell's service worker is what answers that endpoint. A visitor who arrives before it is
-//      there waits for it and reloads once, before anything else starts, because a list of models
-//      asked for uncontrolled comes back empty and a download begun uncontrolled begins again.
-//   3. The engine is started at once, so the model is resident before the first prompt, and the one
+//   1. The shell's service worker is what answers the endpoint the connection names (seeded before
+//      this by ui-seed.js). A visitor who arrives before the worker is there waits for it and reloads
+//      once, before anything else starts, because a list of models asked for uncontrolled comes back
+//      empty and a download begun uncontrolled begins again.
+//   2. The engine is started at once, so the model is resident before the first prompt, and the one
 //      long wait, the first download, is shown as a bar. Nothing here names a colour: the bar uses the
 //      brand kit's variables, which the page already defines.
 const SHELL = new URL("../", import.meta.url);
-const SERVERS = "hollama-servers";
-
-try {
-  const stored = JSON.parse(localStorage.getItem(SERVERS) || "null");
-  if (!Array.isArray(stored) || !stored.length) {
-    localStorage.setItem(SERVERS, JSON.stringify([{
-      id: "hologram",
-      baseUrl: new URL("v1", SHELL).href,
-      connectionType: "openai-compatible",
-      isVerified: new Date().toISOString(),
-      isEnabled: true,
-      label: "Hologram",
-      // The models this page can answer from itself. The paid ones the endpoint also lists need a key,
-      // which is given on the homepage, not here; a visitor can clear this filter in the settings.
-      modelFilter: "webgpu:",
-    }]));
-  }
-} catch (error) {}
-
 const RELOADED = "hologram-ui-reloaded";
 if (!navigator.serviceWorker) throw new Error("this browser has no service worker");
 if (!navigator.serviceWorker.controller) {
