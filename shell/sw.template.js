@@ -41,14 +41,18 @@ self.addEventListener("activate", (event) => {
     const keep = "shell-" + CLOSURE;
     for (const name of await caches.keys()) if (name.startsWith("shell-") && name !== keep) await caches.delete(name);
     await self.clients.claim();
-    // A page that loaded under the previous worker may hold files of two closures (the page from the
-    // network, a script from the old cache): every open page of the shell is reloaded once, so what
-    // runs is one closure. Preview and application frames are left alone.
+  })());
+  // A page that loaded under the previous worker may hold files of two closures (the page from the
+  // network, a script from the old cache): every open page of the shell is reloaded once, so what runs
+  // is one closure. Preview and application frames are left alone. This is deliberately outside
+  // waitUntil and never awaited: a navigation waits for the worker to be active, so waiting on it here
+  // would leave this worker activating for ever and every page on the shell it already had.
+  (async () => {
     for (const client of await self.clients.matchAll({ type: "window" })) {
       const path = new URL(client.url).pathname.slice(BASE.length);
-      if (client.url.startsWith(self.registration.scope) && !/^(p|holo|ui)\//.test(path)) { try { await client.navigate(client.url); } catch (e) {} }
+      if (client.url.startsWith(self.registration.scope) && !/^(p|holo|ui)\//.test(path)) { try { client.navigate(client.url).catch(() => {}); } catch (e) {} }
     }
-  })());
+  })();
 });
 
 // ---- the endpoint
