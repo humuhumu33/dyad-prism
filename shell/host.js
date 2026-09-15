@@ -165,7 +165,7 @@ handlers.set("create-app", async ({ name, initialChatMode }) => {
   for (const [p, src] of Object.entries(await loadScaffold())) await put("files", id + ":" + p, src);
   const oid = await seal(id, "Init Hologram app");
   const chatId = await nextId("chats");
-  await put("chats", chatId, { id: chatId, appId: id, title: name, messages: [], initialCommitHash: oid, dbTimestamp: null, chatMode: initialChatMode || "build", modelSelection: null, referencedApps: [] });
+  await put("chats", chatId, { id: chatId, appId: id, title: name, createdAt: now, messages: [], initialCommitHash: oid, dbTimestamp: null, chatMode: initialChatMode || "build", modelSelection: null, referencedApps: [] });
   return { app: withDates(app), chatId };
 });
 handlers.set("read-app-file", async ({ appId, filePath }) => { const c = await get("files", appId + ":" + filePath); if (c === undefined) throw new Error("no file " + filePath); return c; });
@@ -192,7 +192,26 @@ handlers.set("search-app", async (q) => {
   }
   return out;
 });
-handlers.set("search-app-files", async ({ appId, query }) => { const out = []; for (const p of await filesOf(appId)) { if (p.toLowerCase().includes(String(query || "").toLowerCase())) out.push({ path: p }); } return out; });
+// A file matches by its path or by a line of its text, and the renderer shows the matching line with
+// what surrounds it, so the snippets are cut here rather than left out.
+handlers.set("search-app-files", async ({ appId, query }) => {
+  const needle = String(query || "").toLowerCase();
+  const out = [];
+  for (const p of await filesOf(appId)) {
+    const snippets = [];
+    if (needle) {
+      const lines = String((await get("files", appId + ":" + p)) || "").split("
+");
+      for (let i = 0; i < lines.length && snippets.length < 8; i += 1) {
+        const at = lines[i].toLowerCase().indexOf(needle);
+        if (at < 0) continue;
+        snippets.push({ before: lines[i].slice(Math.max(0, at - 40), at), match: lines[i].slice(at, at + needle.length), after: lines[i].slice(at + needle.length, at + needle.length + 40), line: i + 1 });
+      }
+    }
+    if (!needle || p.toLowerCase().includes(needle) || snippets.length) out.push({ path: p, matchesContent: snippets.length > 0, snippets });
+  }
+  return out;
+});
 handlers.set("app:get-current-commit-hash", async ({ appId }) => (await get("refs", appId + ":main")) || null);
 handlers.set("app:list-screenshots", () => ({ screenshots: [] }));
 handlers.set("app:list-thumbnails", () => ({ thumbnails: [] }));
@@ -248,13 +267,26 @@ handlers.set("checkout-version", async ({ appId, versionId }) => { await restore
 handlers.set("revert-version", async ({ appId, previousVersionId }) => { await restore(appId, previousVersionId); await seal(appId, "Revert to " + previousVersionId.slice(0, 22)); return { successMessage: "Reverted" }; });
 
 // ---- chats as records; the stream is the next slice
-handlers.set("get-chats", async (appId) => (await all("chats")).filter((c) => appId == null || c.appId === appId).map((c) => ({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()), chatMode: c.chatMode || "build", isFavorite: !!c.isFavorite })));
+handlers.set("get-chats", async (appId) => (await all("chats")).filter((c) => appId == null || c.appId === appId).map((c) => chatRow(c)));
 handlers.set("get-chat", async (id) => { const c = await get("chats", id); if (!c) throw new Error("no chat " + id); return { ...c, chatMode: c.chatMode || "build", referencedApps: c.referencedApps || [], messages: (c.messages || []).map((x) => ({ ...x, createdAt: x.createdAt || now() })) }; });
-handlers.set("get-chat-metadata", async (id) => { const c = await get("chats", id); return c ? { id: c.id, appId: c.appId, title: c.title } : null; });
-handlers.set("create-chat", async (appId) => { const id = await nextId("chats"); await put("chats", id, { id, appId, title: "New chat", messages: [], initialCommitHash: null, dbTimestamp: null, chatMode: "build", modelSelection: null, referencedApps: [] }); return id; });
+const chatRow = (c) => ({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()), chatMode: c.chatMode || "build", isFavorite: !!c.isFavorite });
+handlers.set("get-chat-metadata", async (id) => { const c = await get("chats", id); return c ? chatRow(c) : null; });
+handlers.set("create-chat", async (appId) => { const id = await nextId("chats"); await put("chats", id, { id, appId, title: "New chat", createdAt: now(), messages: [], initialCommitHash: null, dbTimestamp: null, chatMode: "build", modelSelection: null, referencedApps: [] }); return id; });
 handlers.set("update-chat", async ({ chatId, title }) => { const c = await get("chats", chatId); if (c && title) c.title = title; if (c) await put("chats", chatId, c); });
 handlers.set("delete-chat", async (id) => { await del("chats", id); });
-handlers.set("search-chats", () => []);
+// The sidebar's search: a chat matches by title or by the text of one of its messages, and the line
+// that matched is what the renderer shows under it.
+handlers.set("search-chats", async (q) => {
+  const needle = String(q || "").toLowerCase();
+  const out = [];
+  for (const c of await all("chats")) {
+    const hit = (c.messages || []).find((m) => String(m.content || "").toLowerCase().includes(needle));
+    if (!needle || String(c.title || "").toLowerCase().includes(needle) || hit) {
+      out.push({ id: c.id, appId: c.appId, title: c.title, createdAt: new Date(c.createdAt || Date.now()), matchedMessageContent: hit ? String(hit.content) : null });
+    }
+  }
+  return out;
+});
 // Counted where it matters: the codebase and the prompt are what a build turn actually sends, and the
 // window is the chosen model's own, so the renderer's context meter tells the truth.
 handlers.set("chat:count-tokens", async ({ chatId, input }) => {
