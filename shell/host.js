@@ -45,6 +45,8 @@ const DEFAULT_SETTINGS = {
   enableImplementerSubagent: false, enableAdvancedSubagents: false, autoFixReviewIssues: false, autoApproveNonSchemaSql: true,
   autoExpandPreviewPanel: true, enableContextCompaction: true, enablePnpmMinimumReleaseAgeWarning: false,
   previewIdleTimeoutPolicy: "default", nodeRuntimePreference: "system", disablePreviewNodeAutoInstall: true,
+  // The scaffold every project starts from is a Vite React app, which is the template this names.
+  selectedTemplateId: "react",
 };
 // A stored record from an earlier shell may lack a key a newer renderer reads (providerSettings, say): the
 // defaults fill what is missing, the record keeps what it has. One mode is implemented here, the build
@@ -170,7 +172,26 @@ handlers.set("read-app-file", async ({ appId, filePath }) => { const c = await g
 handlers.set("edit-app-file", async ({ appId, filePath, content }) => { await put("files", appId + ":" + filePath, content); await seal(appId, "Edit " + filePath); return { success: true, warning: null }; });
 handlers.set("delete-app", async ({ appId }) => { for (const p of await filesOf(appId)) await del("files", appId + ":" + p); await del("apps", appId); await del("versions", appId); await del("refs", appId + ":main"); for (const c of await all("chats")) if (c.appId === appId) await del("chats", c.id); });
 handlers.set("rename-app", async ({ appId, appName }) => { const a = await get("apps", appId); a.name = appName; a.path = appName; a.updatedAt = new Date().toISOString(); await put("apps", appId, a); return { app: withDates(a) }; });
-handlers.set("search-app", async (q) => (await all("apps")).filter((a) => a.name.toLowerCase().includes(String(q || "").toLowerCase())).map(withDates));
+// A search matches a project by name, by the title of one of its chats, or by a line in one of their
+// messages, and says which: the renderer shows the matched title and message under the project's name.
+handlers.set("search-app", async (q) => {
+  const needle = String(q || "").toLowerCase();
+  const chats = await all("chats");
+  const out = [];
+  for (const a of await all("apps")) {
+    const mine = chats.filter((c) => c.appId === a.id);
+    const chat = mine.find((c) => String(c.title || "").toLowerCase().includes(needle));
+    let message = null;
+    for (const c of mine) {
+      const hit = (c.messages || []).find((m) => String(m.content || "").toLowerCase().includes(needle));
+      if (hit) { message = String(hit.content); break; }
+    }
+    if (!needle || a.name.toLowerCase().includes(needle) || chat || message) {
+      out.push({ ...withDates(a), matchedChatTitle: chat ? String(chat.title || "") : null, matchedChatMessage: message });
+    }
+  }
+  return out;
+});
 handlers.set("search-app-files", async ({ appId, query }) => { const out = []; for (const p of await filesOf(appId)) { if (p.toLowerCase().includes(String(query || "").toLowerCase())) out.push({ path: p }); } return out; });
 handlers.set("app:get-current-commit-hash", async ({ appId }) => (await get("refs", appId + ":main")) || null);
 handlers.set("app:list-screenshots", () => ({ screenshots: [] }));
@@ -368,8 +389,67 @@ handlers.set("get-app-theme", () => null);
 handlers.set("get-proposal", () => null);
 handlers.set("select-app-for-preview", () => undefined);
 handlers.set("git:get-uncommitted-files", () => []);
+// Every edit here is sealed as it is made, so nothing is ever uncommitted; the diff of a file is still
+// real -- its bytes now against its bytes at the address main points at.
+handlers.set("git:get-uncommitted-file-diff", async ({ appId, filePath }) => {
+  const snap = await snapshotOf(await get("refs", appId + ":main"));
+  const entry = (snap ? snap.entries : []).find(([path]) => path === filePath);
+  const now = await get("files", appId + ":" + filePath);
+  return { path: filePath, oldContent: entry ? await contentAt(entry[1]) : "", newContent: now === undefined ? "" : now, additions: 0, deletions: 0 };
+});
+handlers.set("github:list-local-branches", () => ({ branches: ["main"], current: "main" }));
 handlers.set("reload-env-path", () => undefined);
 handlers.set("get-cloud-sandbox-status", () => null);
+// The chat's context: which of the project's files a turn carries. Dyad keeps the globs on the app
+// record and shows each one with what it matches, so the counts are measured here over the app's own
+// files -- no glob library, the two wildcards Dyad's dialog writes are enough.
+const globMatch = (glob, path) => new RegExp("^" + String(glob).split("**").map((s) => s.split("*").map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*")).join(".*") + "$").test(path);
+async function contextCounts(appId, globs) {
+  const paths = await filesOf(appId);
+  const out = [];
+  for (const { globPath } of globs || []) {
+    let files = 0, chars = 0;
+    for (const p of paths) if (globMatch(globPath, p)) { files += 1; chars += String((await get("files", appId + ":" + p)) || "").length; }
+    out.push({ globPath, files, tokens: Math.ceil(chars / 4) });
+  }
+  return out;
+}
+handlers.set("get-context-paths", async ({ appId }) => {
+  const c = ((await get("apps", appId)) || {}).chatContext || {};
+  return {
+    contextPaths: await contextCounts(appId, c.contextPaths),
+    smartContextAutoIncludes: await contextCounts(appId, c.smartContextAutoIncludes),
+    excludePaths: await contextCounts(appId, c.excludePaths),
+  };
+});
+handlers.set("set-context-paths", async ({ appId, chatContext }) => { const a = await get("apps", appId); if (!a) throw new Error("no app " + appId); a.chatContext = chatContext; await put("apps", appId, a); });
+// Features this build does not have, each answering what is true here rather than a placeholder:
+// nothing is connected, nothing is installed, nothing was found. A settings or integration screen
+// reads one of these the moment it mounts, and a screen that reads nothing renders its empty state,
+// while a refusal would crash it. Every other unimplemented channel is answered from its own contract
+// in `dispatch` below.
+handlers.set("coolify:get-status", () => ({ hasToken: false, tokenId: null, instanceUrl: null, serverUrl: null, connection: null, appUrl: null, lastDeployedAt: null }));
+handlers.set("coolify:discover", () => ({ servers: [], projects: [] }));
+handlers.set("coolify-setup:snapshot", () => ({ type: "idle" }));
+handlers.set("coolify-setup:get-server-key", () => ({ publicKey: "" }));
+handlers.set("coolify-setup:reveal-credentials", () => ({ instance: null, server: null }));
+handlers.set("local-models:list-ollama", () => ({ models: [] }));
+handlers.set("local-models:list-lmstudio", () => ({ models: [] }));
+handlers.set("mcp:list-catalog", () => ({ entries: [], addedSlugs: [] }));
+handlers.set("mcp:is-oauth-storage-encrypted", () => ({ available: false }));
+handlers.set("mcp:probe-callback-port", () => ({ port: 0 }));
+handlers.set("neon:get-project", () => ({ projectId: "", projectName: "", orgId: "", branches: [] }));
+handlers.set("neon:get-branch-env-vars", () => ({ databaseUrl: "" }));
+handlers.set("neon:get-email-password-config", () => ({ enabled: false, email_verification_method: "link", require_email_verification: false, auto_sign_in_after_verification: false, send_verification_email_on_sign_up: false, send_verification_email_on_sign_in: false, disable_sign_up: false }));
+handlers.set("supabase:detect-legacy-app-key", () => ({ hasLegacyKey: false }));
+handlers.set("tests:list", () => ({ specs: [] }));
+handlers.set("tests:detect-legacy", () => ({ files: [] }));
+handlers.set("vercel:get-sync-preview", () => ({ vercelProjectName: null, branchType: "development", envKeys: [], cookieSecretIncluded: false, target: [], trustedDomainOrigins: [], authActive: false }));
+// No review has been run: this host makes no review turn, so there are no findings to show.
+handlers.set("get-latest-security-review", () => ({ findings: [], timestamp: new Date(0).toISOString(), chatId: 0 }));
+// The site's included key answers without a quota of its own, and a visitor's own key has whatever
+// OpenRouter gives it. Either way nothing is counted here.
+handlers.set("free-model-quota:get-status", () => ({ messagesUsed: 0, messagesLimit: 0, messagesRemaining: 0, isQuotaExceeded: false, resetTime: null }));
 window.__preview = buildPreview;
 
 // ---- the model: OpenRouter with the visitor's own key, streamed as OpenAI compatible SSE. The key
@@ -610,10 +690,28 @@ function checked(channel, value) {
   console.error("[host] the answer for", channel, "does not match its contract", parsed.error && parsed.error.issues ? parsed.error.issues.slice(0, 3) : parsed.error, value);
   return iterable ? value : (schema._def && (schema._def.type === "array" || schema._def.typeName === "ZodArray") ? [] : value);
 }
+// Dyad's renderer carries every screen it has ever had, including Supabase, Vercel, Neon, Coolify,
+// GitHub, MCP, a terminal and native windows, none of which exist here. A channel this build does not
+// implement is answered with the empty value the channel's own contract accepts -- no servers, no
+// tests, no cloud projects, all true here -- so a screen that opens one renders its empty state
+// instead of dying on a refusal. Nothing is invented: the value has to satisfy the contract, and
+// `tools/contract_shapes.mjs --check` fails the build if a channel a screen reads accepts none of
+// them and has no handler either.
+const EMPTY = [undefined, [], null, {}];
+function emptyAnswer(channel) {
+  const schema = window.__contracts && window.__contracts[channel];
+  if (!schema) return null;
+  for (const value of EMPTY) { let parsed = null; try { parsed = schema.safeParse(value); } catch (e) { parsed = null; } if (parsed && parsed.success) return { value }; }
+  return null;
+}
 function dispatch(channel, args) {
   const n = (seen.get(channel) || 0) + 1; seen.set(channel, n);
   const h = handlers.get(channel);
-  if (!h) { if (n === 1) console.warn("[host] no handler:", channel, args[0]); return Promise.resolve(fail("no browser handler for " + channel)); }
+  if (!h) {
+    const empty = emptyAnswer(channel);
+    if (n === 1) console.warn("[host] not implemented:", channel, empty ? "answered with the empty value its contract accepts" : "refused", args[0]);
+    return Promise.resolve(empty ? ok(empty.value) : fail("not implemented in the browser: " + channel));
+  }
   return Promise.resolve().then(() => h(...args)).then((value) => ok(checked(channel, value)), (e) => { console.warn("[host]", channel, e); return fail(String((e && e.message) || e), "internal"); });
 }
 // Every stored file's bytes are also an object at their own address, so a restore can find them.
