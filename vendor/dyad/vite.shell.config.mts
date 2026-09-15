@@ -22,6 +22,7 @@ import base from "./vite.renderer.config.mts";
 
 const src = path.resolve(__dirname, "src").replace(/\\/g, "/");
 const mark = path.resolve(__dirname, "../../shell/mark.svg");
+const picker = path.resolve(__dirname, "hologram.ModelPicker.tsx");
 const theme = fs.readFileSync(path.resolve(__dirname, "hologram.theme.css"), "utf8");
 const arbitrary: Record<string, string> = JSON.parse(fs.readFileSync(path.resolve(__dirname, "hologram.arbitrary.json"), "utf8"));
 
@@ -29,7 +30,12 @@ const hologramWords: Plugin = {
   name: "hologram-words",
   enforce: "pre",
   resolveId(id, importer) {
-    if (id.endsWith("assets/logo.svg") && importer && importer.replace(/\\/g, "/").startsWith(src)) return mark;
+    const from = importer ? importer.replace(/\\/g, "/") : "";
+    if (id.endsWith("assets/logo.svg") && from.startsWith(src)) return mark;
+    // Two providers answer here, the device and OpenRouter, so the model picker is ours: a flat list
+    // of their models, nothing else. Dyad's has submenus, a recent section, effort levels, price
+    // badges, a trial banner and a Pro upsell, none of which this product has.
+    if (/(^|\/)ModelPicker$/.test(id) && from.startsWith(src)) return picker;
     return null;
   },
   transform(code, id) {
