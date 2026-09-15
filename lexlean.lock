@@ -6,7 +6,7 @@ lean_toolchain = "leanprover/lean4:v4.32.1"
 
 [[workspace_file]]
 path = "lake-manifest.json"
-sha256 = "33106190f9c11dc2e547622bc0cceefa375e5e11f28b2291403513cae3467c1b"
+sha256 = "70cb950529ebefcd4cb7b84a6a913c39851810660d40863e310a36ab39fe4714"
 
 [[workspace_file]]
 path = "lakefile.toml"
